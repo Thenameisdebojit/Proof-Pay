@@ -1,13 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import {
-  isConnected,
-  requestAccess,
-  signAuthEntry,
-  signTransaction as freighterSignTransaction,
-  getNetwork,
-  getPublicKey,
-  signMessage,
-} from '@stellar/freighter-api';
+import albedo from '@albedo-link/intent';
 import { useToast } from '@/hooks/use-toast';
 
 interface WalletContextType {
@@ -45,20 +37,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Check if wallet was previously connected
     const checkConnection = async () => {
       const storedAddress = localStorage.getItem('walletAddress');
-      if (storedAddress && (await isConnected())) {
-        const key = await getPublicKey();
-        if (key === storedAddress) {
-            // Validate network
-            const currentNetwork = await getNetwork();
-            setNetwork(currentNetwork);
-            if (currentNetwork.toLowerCase() !== requiredNetwork.toLowerCase()) {
-                console.warn("Network mismatch on restore");
-                // Don't auto-connect if network is wrong, or handle gracefully
-            }
-            setAddress(key);
-            setConnected(true);
-            fetchBalance(key);
-        }
+      if (storedAddress) {
+          // Verify session or just restore
+          setAddress(storedAddress);
+          setConnected(true);
+          setNetwork(requiredNetwork); // Albedo doesn't expose network state persistently easily without re-auth
+          fetchBalance(storedAddress);
       }
     };
     checkConnection();
@@ -66,7 +50,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const fetchBalance = async (pubKey: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_HORIZON}/accounts/${pubKey}`);
+      const response = await fetch(`${import.meta.env.VITE_HORIZON || 'https://horizon-testnet.stellar.org'}/accounts/${pubKey}`);
       if (response.ok) {
         const data = await response.json();
         const xlmBalance = data.balances.find((b: any) => b.asset_type === 'native');
@@ -85,91 +69,35 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Helper to prevent hanging promises
-  const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number = 30000, errorMsg: string = "Operation timed out"): Promise<T> => {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(errorMsg)), timeoutMs))
-    ]);
-  };
-
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
-      let installed = await isConnected();
-      if (!installed) {
-        // Retry once in case of slow injection
-        await new Promise(r => setTimeout(r, 1000));
-        installed = await isConnected();
-      }
-
-      if (!installed) {
-        toast({
-          title: "Freighter not found",
-          description: "Please install Freighter wallet extension.",
-          variant: "destructive",
-        });
-        setIsConnecting(false); // Ensure state reset
-        return;
-      }
-
-      // Notify user to check extension
-      toast({
-          title: "Requesting Access",
-          description: "Please check the Freighter popup to grant access.",
-      });
-
-      const allowed = await withTimeout(requestAccess(), 60000, "Access request timed out. Please unlock Freighter.");
-      console.log("Access result:", allowed);
-      
-      if (!allowed) {
-        toast({
-            title: "Access Denied",
-            description: "User denied wallet access.",
-            variant: "destructive"
-        });
-        setIsConnecting(false);
-        return;
-      }
-
-      const key = await withTimeout(getPublicKey(), 10000, "Failed to get public key");
-      console.log("Wallet Address:", key);
-      
-      const userNetwork = await withTimeout(getNetwork(), 10000, "Failed to get network");
-      console.log("Wallet Network:", userNetwork);
-      
-      // Loose check for network to avoid blocking if string format differs
-      // Accept 'Testnet', 'TESTNET', 'Test SDF Network ; September 2015', etc.
-      if (!userNetwork || !userNetwork.toLowerCase().includes('testnet')) {
-        toast({
-          title: "Wrong Network",
-          description: `Please switch Freighter to Testnet (Current: ${userNetwork || 'Unknown'}).`,
-          variant: "destructive",
-        });
-        // We allow connection but warn user? No, for safety we should probably return or force switch.
-        // But let's fail gracefully.
-        setIsConnecting(false);
-        return;
-      }
-
       // Login Challenge
       const timestamp = new Date().toISOString();
       const message = `Login to ProofPay at ${timestamp}`;
       
       try {
            toast({
-             title: "Sign to Login",
-             description: "Please sign the challenge message in Freighter.",
+             title: "Connecting to Albedo",
+             description: "Please approve the connection in the Albedo popup.",
            });
 
-           console.log("Requesting signature...");
-           const signature = await withTimeout(signMessage(message), 60000, "Signature timed out");
+           console.log("Requesting access from Albedo...");
            
-           console.log("Login signature:", signature);
+           const result = await albedo.publicKey({
+               token: message 
+           });
            
+           console.log("Albedo result:", result);
+           
+           const key = result.pubkey;
+           const signedMessage = result.signature; // Albedo returns signature if token is provided
+           
+           if (!key) throw new Error("No public key returned");
+
            setAddress(key);
            setConnected(true);
-           setNetwork(userNetwork);
+           setNetwork('testnet'); // Albedo generally defaults to mainnet but we can force operations to testnet
            localStorage.setItem('walletAddress', key);
            fetchBalance(key);
            
@@ -178,10 +106,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             description: `Connected to ${key.substring(0, 4)}...${key.substring(key.length - 4)}`,
            });
       } catch (err: any) {
-           console.error("Login signature failed:", err);
+           console.error("Albedo connection failed:", err);
             toast({
-             title: "Login Failed",
-             description: err.message || "User rejected the login signature.",
+             title: "Connection Failed",
+             description: err.message || "User rejected the connection.",
              variant: "destructive"
            });
            setConnected(false); // Reset if signature fails
@@ -215,8 +143,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const signTransaction = async (xdr: string) => {
     try {
-      const signedXdr = await freighterSignTransaction(xdr, { network: requiredNetwork.toUpperCase() as any });
-      return signedXdr;
+      const result = await albedo.tx({
+          xdr: xdr,
+          network: requiredNetwork // 'testnet' or 'public'
+      });
+      return result.signed_envelope_xdr;
     } catch (error) {
       console.error("Signing error:", error);
       throw error;

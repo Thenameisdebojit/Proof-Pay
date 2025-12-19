@@ -1,26 +1,21 @@
-import { Fund } from "@shared/schema";
+import { OnChainFund } from "@/lib/soroban-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
-  FileText, 
-  ArrowRight,
-  ShieldAlert
-} from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, FileText, ArrowRight, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
+import { FundTimeline } from "@/components/FundTimeline";
 
 interface FundCardProps {
-  fund: Fund;
+  fund: OnChainFund;
   role: 'Funder' | 'Beneficiary' | 'Verifier';
-  onAction?: (fund: Fund) => void;
+  onAction?: (fund: OnChainFund) => void;
   actionLabel?: string;
   isActionLoading?: boolean;
 }
 
 export function FundCard({ fund, role, onAction, actionLabel, isActionLoading }: FundCardProps) {
+  
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Locked": return "bg-yellow-100 text-yellow-700 border-yellow-200";
@@ -32,16 +27,32 @@ export function FundCard({ fund, role, onAction, actionLabel, isActionLoading }:
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "Locked": return <Clock className="w-3.5 h-3.5 mr-1" />;
-      case "Pending Verification": return <ShieldAlert className="w-3.5 h-3.5 mr-1" />;
-      case "Approved": return <CheckCircle2 className="w-3.5 h-3.5 mr-1" />;
-      case "Released": return <CheckCircle2 className="w-3.5 h-3.5 mr-1" />;
-      case "Rejected": return <AlertCircle className="w-3.5 h-3.5 mr-1" />;
-      default: return null;
-    }
+  const getFlowInfo = () => {
+      if (fund.status === "Locked") {
+          return {
+              next: "Beneficiary must submit proof.",
+              consequence: "If deadline passes, Funder can refund.",
+              who: "Beneficiary"
+          };
+      }
+      if (fund.status === "Pending Verification") {
+          return {
+              next: "Verifier must review proof.",
+              consequence: "Funds remain locked until decision.",
+              who: "Verifier"
+          };
+      }
+      if (fund.status === "Approved") {
+          return {
+              next: "Funds ready for release.",
+              consequence: "Beneficiary receives funds.",
+              who: "Automated/Verifier"
+          };
+      }
+      return null;
   };
+
+  const flow = getFlowInfo();
 
   return (
     <Card className="overflow-hidden border-border/60 shadow-sm hover:shadow-md transition-all duration-300 group">
@@ -49,7 +60,6 @@ export function FundCard({ fund, role, onAction, actionLabel, isActionLoading }:
         <div className="flex justify-between items-start">
           <div className="space-y-1">
             <Badge variant="outline" className={getStatusColor(fund.status)}>
-              {getStatusIcon(fund.status)}
               {fund.status}
             </Badge>
             <CardTitle className="text-xl font-display pt-2">
@@ -57,66 +67,64 @@ export function FundCard({ fund, role, onAction, actionLabel, isActionLoading }:
             </CardTitle>
           </div>
           <div className="text-xs text-muted-foreground text-right">
-            <p>Created</p>
-            <p className="font-medium">{fund.createdAt ? format(new Date(fund.createdAt), "MMM d, yyyy") : "N/A"}</p>
+             <p>Deadline</p>
+             <p className="font-medium text-red-600">
+                {fund.deadline ? format(new Date(fund.deadline), "MMM d, yyyy") : "No Deadline"}
+             </p>
           </div>
         </div>
       </CardHeader>
+      
       <CardContent className="pt-4 space-y-4">
+        {/* Timeline Visualization */}
+        <div className="pb-2">
+            <FundTimeline status={fund.status} deadline={fund.deadline} />
+        </div>
+
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-xs text-muted-foreground mb-1">Beneficiary</p>
             <p className="font-mono text-xs bg-muted/50 p-1.5 rounded truncate" title={fund.beneficiaryAddress}>
-              {fund.beneficiaryAddress}
+              {fund.beneficiaryAddress.substring(0, 8)}...{fund.beneficiaryAddress.slice(-4)}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-1">Verifier</p>
             <p className="font-mono text-xs bg-muted/50 p-1.5 rounded truncate" title={fund.verifierAddress}>
-              {fund.verifierAddress}
+              {fund.verifierAddress.substring(0, 8)}...{fund.verifierAddress.slice(-4)}
             </p>
           </div>
         </div>
-
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">Conditions</p>
-          <div className="bg-secondary/20 p-3 rounded-lg text-sm text-foreground/80 line-clamp-2 border border-border/50">
-            {fund.conditions}
-          </div>
-        </div>
+        
+        {/* Guided Flow Box */}
+        {flow && (
+            <div className="bg-blue-50 border border-blue-100 rounded-md p-3 text-xs space-y-1">
+                <div className="flex justify-between font-semibold text-blue-900">
+                    <span>Next: {flow.next}</span>
+                    <span className="uppercase text-[10px] bg-blue-200 px-1 rounded">{flow.who}</span>
+                </div>
+                <div className="text-blue-700">
+                    ⚠️ {flow.consequence}
+                </div>
+            </div>
+        )}
 
         {fund.proofDescription && (
-          <div>
-            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-              <FileText className="w-3 h-3" /> Proof Submitted
-            </p>
-            <p className="text-sm italic text-foreground/70">"{fund.proofDescription}"</p>
-            {fund.ipfsHash && (
-              <a 
-                href={`https://ipfs.io/ipfs/${fund.ipfsHash}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-xs text-primary hover:underline mt-1 inline-block"
-              >
-                View Attachment (IPFS)
-              </a>
-            )}
+          <div className="text-xs text-muted-foreground">
+             <span className="font-semibold">Proof:</span> {fund.proofDescription}
           </div>
         )}
       </CardContent>
 
       {onAction && (
-        <CardFooter className="bg-muted/20 border-t p-4">
+        <CardFooter className="bg-muted/10 pt-4">
           <Button 
-            onClick={() => onAction(fund)} 
+            className="w-full gap-2" 
+            onClick={() => onAction(fund)}
             disabled={isActionLoading}
-            className="w-full bg-white border border-border hover:bg-primary hover:text-white hover:border-primary transition-colors text-foreground shadow-sm"
           >
-            {isActionLoading ? "Processing..." : (
-              <>
-                {actionLabel} <ArrowRight className="w-4 h-4 ml-2" />
-              </>
-            )}
+            {actionLabel || "View Details"}
+            <ArrowRight className="w-4 h-4" />
           </Button>
         </CardFooter>
       )}

@@ -94,7 +94,6 @@ export async function registerRoutes(
         amount: "1000",
         conditions: "Must maintain GPA > 3.5",
         deadline: "2025-12-31",
-        status: "Locked",
         ipfsHash: "",
         proofDescription: "",
       });

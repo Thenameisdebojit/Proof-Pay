@@ -1,149 +1,172 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertFund, type SubmitProofRequest, type VerifyFundRequest } from "@shared/routes";
+import { sorobanData } from "@/lib/soroban-data";
+import { useSoroban } from "@/hooks/use-soroban";
 import { useToast } from "@/hooks/use-toast";
+import { insertFundSchema } from "@shared/schema";
+import { z } from "zod";
 
-// Fetch list of funds, optionally filtered
 export function useFunds(filters?: { role?: 'Funder' | 'Beneficiary' | 'Verifier', address?: string }) {
-  const queryKey = filters ? [api.funds.list.path, filters] : [api.funds.list.path];
-  
   return useQuery({
-    queryKey,
+    queryKey: ['funds', filters],
     queryFn: async () => {
-      // Build query string from filters
-      const params = new URLSearchParams();
-      if (filters?.role) params.append("role", filters.role);
-      if (filters?.address) params.append("address", filters.address);
+      const allFunds = await sorobanData.getAllFunds();
       
-      const url = `${api.funds.list.path}?${params.toString()}`;
-      
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch funds");
-      return api.funds.list.responses[200].parse(await res.json());
-    },
-  });
-}
+      // Filter locally
+      if (!filters) return allFunds;
 
-// Fetch single fund details
-export function useFund(id: number) {
-  return useQuery({
-    queryKey: [api.funds.get.path, id],
-    queryFn: async () => {
-      const url = buildUrl(api.funds.get.path, { id });
-      const res = await fetch(url, { credentials: "include" });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch fund details");
-      return api.funds.get.responses[200].parse(await res.json());
-    },
-  });
-}
+      return allFunds.filter(fund => {
+        if (!filters.address) return true;
+        
+        // Case-insensitive comparison
+        const userAddr = filters.address.toLowerCase();
+        const funder = fund.funderAddress.toLowerCase();
+        const beneficiary = fund.beneficiaryAddress.toLowerCase();
+        const verifier = fund.verifierAddress.toLowerCase();
 
-// Create a new fund
-export function useCreateFund() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async (data: InsertFund) => {
-      const res = await fetch(api.funds.create.path, {
-        method: api.funds.create.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      
-      if (!res.ok) {
-        if (res.status === 400) {
-          const error = api.funds.create.responses[400].parse(await res.json());
-          throw new Error(error.message);
+        if (filters.role === 'Funder') {
+            return funder === userAddr;
         }
-        throw new Error("Failed to create fund");
+        if (filters.role === 'Beneficiary') {
+            return beneficiary === userAddr;
+        }
+        if (filters.role === 'Verifier') {
+            return verifier === userAddr;
+        }
+        return true;
+      });
+    },
+    refetchInterval: 10000, // Poll every 10 seconds
+  });
+}
+
+export function useCreateFund() {
+  const { toast } = useToast();
+  const soroban = useSoroban();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (data: z.infer<typeof insertFundSchema>) => {
+      // 1. Create hash from conditions (simple mock hash for now)
+      const requirementHash = "0".repeat(64); 
+
+      // 2. Calculate deadline timestamp
+      const deadlineTimestamp = Math.floor(new Date(data.deadline).getTime() / 1000);
+
+      // 3. Call Soroban Contract
+      const result = await soroban.createFund(
+        data.beneficiaryAddress,
+        data.verifierAddress,
+        data.amount,
+        deadlineTimestamp,
+        requirementHash
+      );
+
+      // 4. Save Local Metadata
+      // If we got an ID back (Demo Mode), use it. 
+      // Otherwise fetch latest ID (Real Mode).
+      let newFundId = (result as any)?.id;
+      
+      if (newFundId === undefined) {
+         // In real mode, we assume the new fund is the last one created
+         const nextId = await sorobanData.getNextFundId();
+         newFundId = nextId > 0 ? nextId - 1 : 0;
       }
-      return api.funds.create.responses[201].parse(await res.json());
+      
+      sorobanData.saveLocalMetadata(
+        newFundId,
+        data.conditions,
+        undefined, 
+        undefined, 
+        undefined  
+      );
+
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.funds.list.path] });
-      toast({
-        title: "Fund Created",
-        description: "Your scholarship fund has been successfully locked on the network.",
-      });
+      toast({ title: "Fund Created Successfully" });
+      queryClient.invalidateQueries({ queryKey: ['funds'] });
     },
-    onError: (err) => {
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive",
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to create fund", 
+        description: error.message, 
+        variant: "destructive" 
       });
-    },
+    }
   });
+
+  return { ...mutation, txStatus: soroban.txStatus };
 }
 
-// Submit Proof (Beneficiary)
+export function useReleaseFunds() {
+  const { toast } = useToast();
+  const soroban = useSoroban();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (id: number) => {
+      const result = await soroban.releaseFunds(id);
+      
+      // Update local metadata if needed (optional for status change as it's on-chain)
+      // But we can update the mock state or just invalidate queries
+      if (result) {
+         sorobanData.mockUpdateFundStatus(id, "Released");
+      }
+      return result;
+    },
+    onSuccess: () => {
+      toast({ title: "Funds Released Successfully" });
+      queryClient.invalidateQueries({ queryKey: ['funds'] });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to release funds", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    }
+  });
+
+  return { ...mutation, txStatus: soroban.txStatus };
+}
+
 export function useSubmitProof() {
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const soroban = useSoroban();
+  const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: SubmitProofRequest }) => {
-      const url = buildUrl(api.funds.submitProof.path, { id });
-      const res = await fetch(url, {
-        method: api.funds.submitProof.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
+  const mutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number, data: { proofDescription: string, ipfsHash: string } }) => {
+      // 1. Create hash from IPFS hash (mock or real)
+      const proofHash = data.ipfsHash.padEnd(64, '0').substring(0, 64);
 
-      if (!res.ok) throw new Error("Failed to submit proof");
-      return api.funds.submitProof.responses[200].parse(await res.json());
+      // 2. Call Soroban Contract
+      const result = await soroban.submitProof(id, proofHash);
+
+      // 3. Save Local Metadata (update existing)
+      const existingMeta = sorobanData.getLocalMetadata(id);
+      sorobanData.saveLocalMetadata(
+        id,
+        existingMeta.conditions,
+        data.proofDescription,
+        data.ipfsHash,
+        existingMeta.feedbackStatus
+      );
+
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.funds.list.path] });
-      toast({
-        title: "Proof Submitted",
-        description: "Your proof has been sent to the verifier for review.",
-      });
+      toast({ title: "Proof Submitted Successfully" });
+      queryClient.invalidateQueries({ queryKey: ['funds'] });
     },
-    onError: (err) => {
-      toast({
-        title: "Submission Failed",
-        description: err.message,
-        variant: "destructive",
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to submit proof", 
+        description: error.message, 
+        variant: "destructive" 
       });
-    },
+    }
   });
-}
 
-// Verify Fund (Verifier)
-export function useVerifyFund() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: VerifyFundRequest }) => {
-      const url = buildUrl(api.funds.verify.path, { id });
-      const res = await fetch(url, {
-        method: api.funds.verify.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-
-      if (!res.ok) throw new Error("Failed to verify fund");
-      return api.funds.verify.responses[200].parse(await res.json());
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: [api.funds.list.path] });
-      const action = data.status === "Approved" || data.status === "Released" ? "approved" : "rejected";
-      toast({
-        title: "Verification Complete",
-        description: `Fund has been ${action}.`,
-      });
-    },
-    onError: (err) => {
-      toast({
-        title: "Verification Failed",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
-  });
+  return { ...mutation, txStatus: soroban.txStatus };
 }

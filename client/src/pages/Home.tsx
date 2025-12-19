@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { useFunds, useCreateFund } from "@/hooks/use-funds";
-import { useSoroban } from "@/hooks/use-soroban";
-import { useWallet } from "@/context/WalletContext";
 import { FundCard } from "@/components/FundCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,14 +26,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFundSchema } from "@shared/schema";
 import { Plus, Wallet, Users, Lock, Loader2 } from "lucide-react";
 import { z } from "zod";
+import { useWallet } from "@/context/WalletContext";
+import { TxStatus } from "@/hooks/use-soroban";
 
 // Funder Dashboard
 
 export default function Home() {
-  const { address } = useWallet();
-  const { data: funds, isLoading } = useFunds({ role: "Funder" });
-  const createFundApi = useCreateFund();
-  const { createFund: createFundContract, isLoading: isContractLoading } = useSoroban();
+  const { address, isConnected } = useWallet();
+  const { data: funds, isLoading } = useFunds({ role: "Funder", address: address || "" });
+  const createFund = useCreateFund();
   const [open, setOpen] = useState(false);
 
   // Stats calculation
@@ -48,7 +47,7 @@ export default function Home() {
     defaultValues: {
       funderAddress: address || "", 
       beneficiaryAddress: "",
-      verifierAddress: "GARDUZKVACKTW4XWNI2T2SZ4Y3L3NBIBPW4SQHFY55Y665HHZTSD3XG4", // Default Verifier
+      verifierAddress: "",
       amount: "",
       conditions: "",
       deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // ~30 days default
@@ -62,35 +61,28 @@ export default function Home() {
     }
   }, [address, form]);
 
-  const onSubmit = async (data: z.infer<typeof insertFundSchema>) => {
-    try {
-      // 1. Submit to Blockchain
-      // Generate a dummy requirement hash for now (hash of conditions)
-      // In prod this would be a real hash of the IPFS CID or similar
-      const requirementHash = "a".repeat(64); 
-      
-      const deadlineTimestamp = Math.floor(new Date(data.deadline).getTime() / 1000);
-
-      const txResult = await createFundContract(
-        data.beneficiaryAddress,
-        data.verifierAddress,
-        data.amount,
-        deadlineTimestamp,
-        requirementHash
-      );
-
-      if (txResult?.status === 'success') {
-        // 2. If successful, save to Backend
-        createFundApi.mutate(data, {
-          onSuccess: () => {
-            setOpen(false);
-            form.reset();
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Fund creation failed", error);
+  const getStatusMessage = (status: TxStatus) => {
+    switch (status) {
+      case 'simulating': return "Simulating...";
+      case 'signing': return "Sign in Wallet...";
+      case 'submitting': return "Submitting...";
+      case 'polling': return "Confirming...";
+      case 'success': return "Success!";
+      case 'error': return "Failed";
+      default: return "Creating...";
     }
+  };
+
+  const onSubmit = (data: z.infer<typeof insertFundSchema>) => {
+    if (!isConnected) return;
+    createFund.mutate(data, {
+      onSuccess: () => {
+        setOpen(false);
+        form.reset();
+        // Reset default address
+        if (address) form.setValue("funderAddress", address);
+      }
+    });
   };
 
   return (
@@ -230,8 +222,8 @@ export default function Home() {
 
                 <div className="flex justify-end gap-3 pt-4">
                   <Button variant="outline" type="button" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={isContractLoading || createFundApi.isPending}>
-                    {isContractLoading || createFundApi.isPending ? "Locking Funds..." : "Create Fund"}
+                  <Button type="submit" disabled={createFund.isPending}>
+                    {createFund.isPending ? getStatusMessage(createFund.txStatus) : "Create Fund"}
                   </Button>
                 </div>
               </form>

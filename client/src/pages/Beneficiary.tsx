@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { useFunds, useSubmitProof } from "@/hooks/use-funds";
-import { useSoroban } from "@/hooks/use-soroban";
-import { useWallet } from "@/context/WalletContext";
+import { useFunds, useSubmitProof, useReleaseFunds } from "@/hooks/use-funds";
 import { FundCard } from "@/components/FundCard";
+import { useWallet } from "@/context/WalletContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { TxStatus } from "@/hooks/use-soroban";
 import { 
   Dialog, 
   DialogContent, 
@@ -16,45 +16,47 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Loader2, UploadCloud } from "lucide-react";
-import { Fund } from "@shared/schema";
+import { OnChainFund } from "@/lib/soroban-data";
 
 export default function Beneficiary() {
   const { address } = useWallet();
   const { data: funds, isLoading } = useFunds({ role: "Beneficiary", address: address || "" });
-  const submitProofApi = useSubmitProof();
-  const { submitProof: submitProofContract, isLoading: isContractLoading } = useSoroban();
+  const submitProof = useSubmitProof();
+  const releaseFunds = useReleaseFunds();
   
-  const [selectedFund, setSelectedFund] = useState<Fund | null>(null);
+  const [selectedFund, setSelectedFund] = useState<OnChainFund | null>(null);
   const [description, setDescription] = useState("");
   const [ipfsHash, setIpfsHash] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFund) return;
 
-    try {
-      // 1. Submit to Blockchain
-      // For prototype, we use a dummy hash if ipfsHash is not 64 chars hex
-      // In prod, this would be the actual hash of the file/metadata
-      const proofHash = "b".repeat(64); 
-
-      const txResult = await submitProofContract(selectedFund.id, proofHash);
-
-      if (txResult?.status === 'success') {
-         // 2. Update Backend
-         submitProofApi.mutate({
-          id: selectedFund.id,
-          data: { proofDescription: description, ipfsHash }
-        }, {
-          onSuccess: () => {
-            setSelectedFund(null);
-            setDescription("");
-            setIpfsHash("");
-          }
-        });
+    submitProof.mutate({
+      id: selectedFund.id,
+      data: { proofDescription: description, ipfsHash }
+    }, {
+      onSuccess: () => {
+        setSelectedFund(null);
+        setDescription("");
+        setIpfsHash("");
       }
-    } catch (error) {
-      console.error("Proof submission failed", error);
+    });
+  };
+
+  const handleClaim = (fund: OnChainFund) => {
+    releaseFunds.mutate(fund.id);
+  };
+
+  const getStatusMessage = (status: TxStatus) => {
+    switch (status) {
+      case 'simulating': return "Simulating...";
+      case 'signing': return "Sign in Wallet...";
+      case 'submitting': return "Submitting...";
+      case 'polling': return "Confirming...";
+      case 'success': return "Success!";
+      case 'error': return "Failed";
+      default: return "Submit for Review";
     }
   };
 
@@ -81,8 +83,14 @@ export default function Beneficiary() {
               key={fund.id} 
               fund={fund} 
               role="Beneficiary" 
-              actionLabel={fund.status === "Locked" ? "Submit Proof" : undefined}
-              onAction={fund.status === "Locked" ? () => setSelectedFund(fund) : undefined}
+              actionLabel={
+                fund.status === "Locked" ? "Submit Proof" : 
+                fund.status === "Approved" ? (releaseFunds.isPending ? "Claiming..." : "Claim Funds") : undefined
+              }
+              onAction={
+                fund.status === "Locked" ? () => setSelectedFund(fund) : 
+                fund.status === "Approved" ? () => handleClaim(fund) : undefined
+              }
             />
           ))}
         </div>
@@ -131,8 +139,8 @@ export default function Beneficiary() {
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="ghost" onClick={() => setSelectedFund(null)}>Cancel</Button>
-              <Button type="submit" disabled={isContractLoading || submitProofApi.isPending}>
-                {isContractLoading || submitProofApi.isPending ? "Submitting..." : "Submit for Review"}
+              <Button type="submit" disabled={submitProof.isPending}>
+                {submitProof.isPending ? getStatusMessage(submitProof.txStatus) : "Submit for Review"}
               </Button>
             </div>
           </form>

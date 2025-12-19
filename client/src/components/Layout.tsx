@@ -5,14 +5,21 @@ import {
   ShieldCheck, 
   LayoutDashboard, 
   History, 
-  LogOut,
   Menu,
   X
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { Button } from "@/components/ui/button";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { SystemStatus } from "./SystemStatus";
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,16 +27,18 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const { 
-    isConnected, 
-    address, 
-    balance, 
-    connectWallet, 
-    disconnectWallet, 
-    isConnecting, 
-    network 
-  } = useWallet();
+  const { isConnected, address, balance, connectWallet, disconnectWallet, isConnecting } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isDemoMode = (import.meta.env.VITE_CONTRACT_ID || "CD73R2Q3").startsWith("CD73R2Q3");
+
+
+  const handleConnect = async () => {
+    try {
+      await connectWallet();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const navItems = [
     { label: "Funder Dashboard", href: "/", icon: LayoutDashboard },
@@ -58,91 +67,89 @@ export function Layout({ children }: LayoutProps) {
         "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out md:translate-x-0 md:static flex flex-col",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="p-6 hidden md:flex items-center gap-3">
+        <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-primary-foreground font-bold shadow-lg shadow-primary/25">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-display font-bold text-xl tracking-tight">ProofPay</h1>
+            <div className="flex items-center gap-2">
+                <h1 className="font-display font-bold text-xl tracking-tight">ProofPay</h1>
+                {isDemoMode && <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-amber-100 text-amber-800 hover:bg-amber-100">DEMO</Badge>}
+            </div>
             <p className="text-xs text-muted-foreground font-medium">Conditional Disbursements</p>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-1">
+        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href}>
               <div 
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group cursor-pointer",
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer",
                   location === item.href 
-                    ? "bg-primary/10 text-primary shadow-sm" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-primary/10 text-primary" 
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <item.icon className={cn(
-                  "w-5 h-5 transition-colors",
-                  location === item.href ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-                )} />
+                <item.icon className="w-4 h-4" />
                 {item.label}
               </div>
             </Link>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border">
-          {isConnected && address ? (
-            <div className="p-4 rounded-xl bg-secondary/50 border border-border/50 space-y-3">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-9 w-9 border border-primary/20">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {address.substring(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 overflow-hidden">
-                  <p className="text-xs font-medium truncate text-foreground" title={address}>{address}</p>
-                  <p className="text-xs text-primary font-bold">{balance}</p>
-                </div>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full h-8 text-xs gap-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-                onClick={disconnectWallet}
-              >
-                <LogOut className="w-3 h-3" /> Disconnect
-              </Button>
-            </div>
-          ) : (
-            <Button 
-              onClick={connectWallet} 
-              disabled={isConnecting}
-              className="w-full bg-gradient-to-r from-primary to-indigo-600 shadow-lg shadow-primary/20"
-            >
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </Button>
-          )}
-        </div>
+        <SystemStatus />
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-background/50 relative">
+      <main className={cn(
+        "flex-1 transition-all duration-200 ease-in-out",
+        mobileMenuOpen ? "ml-64" : "ml-0"
+      )}>
         {/* Header Strip */}
         <header className="h-16 border-b bg-background/80 backdrop-blur-sm sticky top-0 z-40 px-6 flex items-center justify-between">
-          <h2 className="font-display font-semibold text-lg capitalize">
-            {location === "/" ? "Funder Dashboard" : location.replace("/", "").replace("-", " ")}
-          </h2>
           <div className="flex items-center gap-4">
-             {address && (
-              <div className={cn(
-                "text-xs font-mono px-3 py-1 rounded-full border",
-                network?.toLowerCase() === 'testnet' || network?.toLowerCase() === 'test sdf network ; september 2015'
-                  ? "text-green-600 bg-green-50 border-green-200" 
-                  : "text-amber-600 bg-amber-50 border-amber-200"
-              )}>
-                Network: {network || 'Unknown'}
-              </div>
-             )}
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              <Menu />
+            </Button>
+            <h2 className="font-display font-semibold text-lg capitalize">
+              {location === "/" ? "Funder Dashboard" : location.replace("/", "").replace("-", " ")}
+            </h2>
+          </div>
+          
+          <div className="flex items-center gap-4">
+             <div className="hidden md:block text-xs font-mono text-muted-foreground bg-muted px-3 py-1 rounded-full">
+               Network: Testnet
+             </div>
+
+             {/* Wallet Connection - Moved to Header */}
+             {isConnected && address ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-2 border-border/50 bg-secondary/50 hover:bg-secondary/80 transition-all">
+                      <div className="flex flex-col items-end text-xs mr-1">
+                        <span className="font-mono font-medium">{balance}</span>
+                        <span className="text-muted-foreground">{address.substring(0, 4)}...{address.substring(address.length - 4)}</span>
+                      </div>
+                      <Avatar className="h-8 w-8 border-2 border-primary/20">
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                          {address.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={disconnectWallet} className="text-destructive focus:text-destructive cursor-pointer">
+                       Disconnect Wallet
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button onClick={handleConnect} disabled={isConnecting} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
+                  {isConnecting ? "Connecting..." : "Connect Wallet"}
+                </Button>
+              )}
           </div>
         </header>
 

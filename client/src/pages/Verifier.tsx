@@ -1,72 +1,57 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { useFunds, useVerifyFund } from "@/hooks/use-funds";
-import { useSoroban } from "@/hooks/use-soroban";
-import { useWallet } from "@/context/WalletContext";
+import { useFunds } from "@/hooks/use-funds";
 import { FundCard } from "@/components/FundCard";
+import { useSoroban, TxStatus } from "@/hooks/use-soroban";
+import { useWallet } from "@/context/WalletContext";
+import { AIVerificationPanel } from "@/components/AIVerificationPanel";
 import { Button } from "@/components/ui/button";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogFooter
-} from "@/components/ui/dialog";
-import { Loader2, CheckCircle, XCircle } from "lucide-react";
-import { Fund } from "@shared/schema";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Verifier() {
   const { address } = useWallet();
-  const { data: funds, isLoading } = useFunds({ role: "Verifier", address: address || "" });
-  const verifyFund = useVerifyFund();
-  const { approveProof, refundFunder, isLoading: isContractLoading } = useSoroban();
+  const { data: funds, isLoading: isFundsLoading } = useFunds({ role: "Verifier", address: address || "" });
+  const { approveProof, refundFunder, isLoading: isTxLoading, txStatus } = useSoroban();
+  const { toast } = useToast();
   
-  const [selectedFund, setSelectedFund] = useState<Fund | null>(null);
-  const [processingState, setProcessingState] = useState<'idle' | 'signing' | 'submitting'>('idle');
+  const [selectedFund, setSelectedFund] = useState<any>(null);
+  const [aiVerified, setAiVerified] = useState(false);
 
-  // Filter only funds that need attention
+  const getStatusMessage = (status: TxStatus) => {
+    switch (status) {
+      case 'simulating': return "Simulating...";
+      case 'signing': return "Sign in Wallet...";
+      case 'submitting': return "Submitting...";
+      case 'polling': return "Confirming...";
+      case 'success': return "Success!";
+      case 'error': return "Failed";
+      default: return "Approve & Sign";
+    }
+  };
+
   const pendingFunds = funds?.filter(f => f.status === "Pending Verification") || [];
   const processedFunds = funds?.filter(f => f.status !== "Pending Verification" && f.status !== "Locked") || [];
 
-  const handleDecision = async (decision: 'Approved' | 'Rejected') => {
+  const handleApprove = async () => {
     if (!selectedFund) return;
-    
-    setProcessingState('signing');
-    
-    try {
-      if (decision === 'Approved') {
-        const txResult = await approveProof(selectedFund.id);
-        if (txResult?.status !== 'success') {
-          setProcessingState('idle');
-          return;
-        }
-      } else if (decision === 'Rejected') {
-        const txResult = await refundFunder(selectedFund.id);
-        if (txResult?.status !== 'success') {
-          setProcessingState('idle');
-          return;
-        }
-      }
-
-      setProcessingState('submitting');
-      
-      verifyFund.mutate({
-        id: selectedFund.id,
-        data: { status: decision }
-      }, {
-        onSuccess: () => {
-          setSelectedFund(null);
-          setProcessingState('idle');
-        },
-        onError: () => {
-          setProcessingState('idle');
-        }
-      });
-    } catch (e) {
-      console.error("Verification failed", e);
-      setProcessingState('idle');
+    if (!aiVerified) {
+        toast({ title: "Verification Required", description: "Please run AI verification first (advisory).", variant: "destructive" });
+        return;
     }
+    
+    await approveProof(selectedFund.id);
+    setSelectedFund(null);
+    setAiVerified(false);
+  };
+
+  const handleReject = async () => {
+    if (!selectedFund) return;
+    // Refund funder is equivalent to rejection in this flow context
+    await refundFunder(selectedFund.id);
+    setSelectedFund(null);
+    setAiVerified(false);
   };
 
   return (
@@ -86,7 +71,7 @@ export default function Verifier() {
             </span>
           </div>
           
-          {isLoading ? (
+          {isFundsLoading ? (
              <Loader2 className="animate-spin text-primary" />
           ) : pendingFunds.length === 0 ? (
             <div className="p-8 border border-dashed rounded-xl text-center text-muted-foreground">
@@ -100,7 +85,10 @@ export default function Verifier() {
                   fund={fund} 
                   role="Verifier"
                   actionLabel="Review Proof"
-                  onAction={() => setSelectedFund(fund)}
+                  onAction={() => {
+                      setSelectedFund(fund);
+                      setAiVerified(false);
+                  }}
                 />
               ))}
             </div>
@@ -118,52 +106,40 @@ export default function Verifier() {
         </section>
       </div>
 
-      {/* Review Modal */}
       <Dialog open={!!selectedFund} onOpenChange={(open) => !open && setSelectedFund(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Review Proof Submission</DialogTitle>
             <DialogDescription>
-              Verify if the beneficiary has met the required conditions.
+              Fund ID: #{selectedFund?.id} • Amount: {selectedFund?.amount} XLM
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-4">
-            <div className="bg-muted p-4 rounded-lg text-sm space-y-2">
-              <p className="font-semibold text-muted-foreground text-xs uppercase">Conditions</p>
-              <p>{selectedFund?.conditions}</p>
+          <div className="space-y-6">
+            <div className="p-4 bg-slate-100 rounded-md">
+                <h4 className="font-semibold text-sm mb-2">Proof Evidence</h4>
+                <p className="text-sm text-slate-700 font-mono break-all">{selectedFund?.proofHash}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                    (In production, this would resolve to an IPFS document)
+                </p>
             </div>
 
-            <div className="bg-indigo-50 dark:bg-indigo-950/30 p-4 rounded-lg text-sm border border-indigo-100 dark:border-indigo-900 space-y-2">
-              <p className="font-semibold text-indigo-600 dark:text-indigo-400 text-xs uppercase">Beneficiary Proof</p>
-              <p className="italic">"{selectedFund?.proofDescription}"</p>
-              {selectedFund?.ipfsHash && (
-                <div className="pt-2">
-                  <a href="#" className="text-xs text-primary underline">View Attached Documents (IPFS)</a>
-                </div>
-              )}
+            <AIVerificationPanel onVerificationComplete={setAiVerified} />
+
+            <div className="flex gap-3 justify-end pt-4">
+                <Button variant="outline" onClick={handleReject} disabled={isTxLoading}>
+                    {isTxLoading ? getStatusMessage(txStatus) : "Reject (Refund Funder)"}
+                </Button>
+                <Button 
+                    onClick={handleApprove} 
+                    disabled={isTxLoading || !aiVerified}
+                    className={aiVerified ? "bg-green-600 hover:bg-green-700" : ""}
+                >
+                    {isTxLoading ? <Loader2 className="animate-spin mr-2" /> : null}
+                    {isTxLoading ? getStatusMessage(txStatus) : "Approve & Sign"}
+                </Button>
             </div>
           </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
-              onClick={() => handleDecision("Rejected")}
-              disabled={processingState !== 'idle'}
-            >
-              {processingState !== 'idle' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
-              Reject
-            </Button>
-            <Button 
-              className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => handleDecision("Approved")}
-              disabled={processingState !== 'idle'}
-            >
-              {processingState !== 'idle' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-              Approve & Release Funds
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Layout>

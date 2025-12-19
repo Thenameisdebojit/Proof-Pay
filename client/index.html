@@ -10,38 +10,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // Global Buffer polyfill for Stellar SDK
-      if (typeof window !== 'undefined' && typeof window.Buffer === 'undefined') {
-        window.Buffer = window.Buffer || [];
-        window.Buffer.from = function(data) {
-            if (Array.isArray(data) || data instanceof Uint8Array) {
-                return new Uint8Array(data);
-            }
-            if (typeof data === 'string') {
-                const len = data.length;
-                if (data.indexOf('0x') === 0) { // Hex string
-                    const bytes = new Uint8Array((len - 2) / 2);
-                    for (let i = 2; i < len; i += 2) {
-                        bytes[(i - 2) / 2] = parseInt(data.substr(i, 2), 16);
-                    }
-                    return bytes;
-                }
-                // Assume utf8/ascii
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = data.charCodeAt(i);
-                }
-                return bytes;
-            }
-            return new Uint8Array(0);
-        };
-      }
-      // Global process polyfill
-      if (typeof window !== 'undefined' && typeof window.process === 'undefined') {
-        window.process = { env: {} };
-      }
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
