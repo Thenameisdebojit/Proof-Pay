@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { useFunds, useCreateFund } from "@/hooks/use-funds";
+import { useSoroban } from "@/hooks/use-soroban";
+import { useWallet } from "@/context/WalletContext";
 import { FundCard } from "@/components/FundCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,8 +32,10 @@ import { z } from "zod";
 // Funder Dashboard
 
 export default function Home() {
+  const { address } = useWallet();
   const { data: funds, isLoading } = useFunds({ role: "Funder" });
-  const createFund = useCreateFund();
+  const createFundApi = useCreateFund();
+  const { createFund: createFundContract, isLoading: isContractLoading } = useSoroban();
   const [open, setOpen] = useState(false);
 
   // Stats calculation
@@ -42,22 +46,51 @@ export default function Home() {
   const form = useForm<z.infer<typeof insertFundSchema>>({
     resolver: zodResolver(insertFundSchema),
     defaultValues: {
-      funderAddress: "GDA...MOCK", // Ideally from context
+      funderAddress: address || "", 
       beneficiaryAddress: "",
-      verifierAddress: "",
+      verifierAddress: "GARDUZKVACKTW4XWNI2T2SZ4Y3L3NBIBPW4SQHFY55Y665HHZTSD3XG4", // Default Verifier
       amount: "",
       conditions: "",
       deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // ~30 days default
     }
   });
 
-  const onSubmit = (data: z.infer<typeof insertFundSchema>) => {
-    createFund.mutate(data, {
-      onSuccess: () => {
-        setOpen(false);
-        form.reset();
+  // Update funder address when wallet connects
+  useEffect(() => {
+    if (address) {
+      form.setValue("funderAddress", address);
+    }
+  }, [address, form]);
+
+  const onSubmit = async (data: z.infer<typeof insertFundSchema>) => {
+    try {
+      // 1. Submit to Blockchain
+      // Generate a dummy requirement hash for now (hash of conditions)
+      // In prod this would be a real hash of the IPFS CID or similar
+      const requirementHash = "a".repeat(64); 
+      
+      const deadlineTimestamp = Math.floor(new Date(data.deadline).getTime() / 1000);
+
+      const txResult = await createFundContract(
+        data.beneficiaryAddress,
+        data.verifierAddress,
+        data.amount,
+        deadlineTimestamp,
+        requirementHash
+      );
+
+      if (txResult?.status === 'success') {
+        // 2. If successful, save to Backend
+        createFundApi.mutate(data, {
+          onSuccess: () => {
+            setOpen(false);
+            form.reset();
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.error("Fund creation failed", error);
+    }
   };
 
   return (
@@ -197,8 +230,8 @@ export default function Home() {
 
                 <div className="flex justify-end gap-3 pt-4">
                   <Button variant="outline" type="button" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={createFund.isPending}>
-                    {createFund.isPending ? "Locking Funds..." : "Create Fund"}
+                  <Button type="submit" disabled={isContractLoading || createFundApi.isPending}>
+                    {isContractLoading || createFundApi.isPending ? "Locking Funds..." : "Create Fund"}
                   </Button>
                 </div>
               </form>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useFunds, useSubmitProof } from "@/hooks/use-funds";
+import { useSoroban } from "@/hooks/use-soroban";
+import { useWallet } from "@/context/WalletContext";
 import { FundCard } from "@/components/FundCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,28 +19,43 @@ import { Loader2, UploadCloud } from "lucide-react";
 import { Fund } from "@shared/schema";
 
 export default function Beneficiary() {
-  // In a real app, we'd pass the connected wallet address here
-  const { data: funds, isLoading } = useFunds({ role: "Beneficiary", address: "G_BENEFICIARY_MOCK" });
-  const submitProof = useSubmitProof();
+  const { address } = useWallet();
+  const { data: funds, isLoading } = useFunds({ role: "Beneficiary", address: address || "" });
+  const submitProofApi = useSubmitProof();
+  const { submitProof: submitProofContract, isLoading: isContractLoading } = useSoroban();
   
   const [selectedFund, setSelectedFund] = useState<Fund | null>(null);
   const [description, setDescription] = useState("");
   const [ipfsHash, setIpfsHash] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFund) return;
 
-    submitProof.mutate({
-      id: selectedFund.id,
-      data: { proofDescription: description, ipfsHash }
-    }, {
-      onSuccess: () => {
-        setSelectedFund(null);
-        setDescription("");
-        setIpfsHash("");
+    try {
+      // 1. Submit to Blockchain
+      // For prototype, we use a dummy hash if ipfsHash is not 64 chars hex
+      // In prod, this would be the actual hash of the file/metadata
+      const proofHash = "b".repeat(64); 
+
+      const txResult = await submitProofContract(selectedFund.id, proofHash);
+
+      if (txResult?.status === 'success') {
+         // 2. Update Backend
+         submitProofApi.mutate({
+          id: selectedFund.id,
+          data: { proofDescription: description, ipfsHash }
+        }, {
+          onSuccess: () => {
+            setSelectedFund(null);
+            setDescription("");
+            setIpfsHash("");
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.error("Proof submission failed", error);
+    }
   };
 
   return (
@@ -114,8 +131,8 @@ export default function Beneficiary() {
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="ghost" onClick={() => setSelectedFund(null)}>Cancel</Button>
-              <Button type="submit" disabled={submitProof.isPending}>
-                {submitProof.isPending ? "Submitting..." : "Submit for Review"}
+              <Button type="submit" disabled={isContractLoading || submitProofApi.isPending}>
+                {isContractLoading || submitProofApi.isPending ? "Submitting..." : "Submit for Review"}
               </Button>
             </div>
           </form>

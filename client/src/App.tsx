@@ -22,13 +22,17 @@ function Router() {
   );
 }
 
+import { WalletProvider } from "@/context/WalletContext";
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <WalletProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </WalletProvider>
     </QueryClientProvider>
   );
 }

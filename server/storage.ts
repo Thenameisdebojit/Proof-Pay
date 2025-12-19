@@ -1,12 +1,9 @@
-import { db } from "./db";
 import {
-  funds,
   type Fund,
   type InsertFund,
   type SubmitProofRequest,
   type VerifyFundRequest
 } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   getFunds(role?: string, address?: string): Promise<Fund[]>;
@@ -16,59 +13,68 @@ export interface IStorage {
   verifyFund(id: number, verification: VerifyFundRequest): Promise<Fund>;
 }
 
-export class DatabaseStorage implements IStorage {
+export class MemStorage implements IStorage {
+  private funds: Map<number, Fund>;
+  private currentId: number;
+
+  constructor() {
+    this.funds = new Map();
+    this.currentId = 1;
+  }
+
   async getFunds(role?: string, address?: string): Promise<Fund[]> {
-    let query = db.select().from(funds).orderBy(desc(funds.createdAt));
-    
+    let allFunds = Array.from(this.funds.values()).sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+    });
+
     if (role && address) {
       if (role === 'Funder') {
-        query = db.select().from(funds).where(eq(funds.funderAddress, address)).orderBy(desc(funds.createdAt));
+        allFunds = allFunds.filter(f => f.funderAddress === address);
       } else if (role === 'Beneficiary') {
-        query = db.select().from(funds).where(eq(funds.beneficiaryAddress, address)).orderBy(desc(funds.createdAt));
+        allFunds = allFunds.filter(f => f.beneficiaryAddress === address);
       } else if (role === 'Verifier') {
-        // Verifier sees funds assigned to them or pending ones?
-        // Requirement: "List: 'Pending Verifications' table." implies filtering by status and verifier address
-        // But for simplicity, let's just show all for verifier or filter by verifier address
-        query = db.select().from(funds).where(eq(funds.verifierAddress, address)).orderBy(desc(funds.createdAt));
+        allFunds = allFunds.filter(f => f.verifierAddress === address);
       }
     }
-    
-    return await query;
+    return allFunds;
   }
 
   async getFund(id: number): Promise<Fund | undefined> {
-    const [fund] = await db.select().from(funds).where(eq(funds.id, id));
-    return fund;
+    return this.funds.get(id);
   }
 
   async createFund(insertFund: InsertFund): Promise<Fund> {
-    const [fund] = await db.insert(funds).values(insertFund).returning();
+    const id = this.currentId++;
+    const fund: Fund = {
+        ...insertFund,
+        id,
+        createdAt: new Date(),
+        status: "Locked",
+        ipfsHash: null,
+        proofDescription: null,
+    };
+    this.funds.set(id, fund);
     return fund;
   }
 
   async submitProof(id: number, proof: SubmitProofRequest): Promise<Fund> {
-    const [updated] = await db
-      .update(funds)
-      .set({
-        ipfsHash: proof.ipfsHash,
-        proofDescription: proof.proofDescription,
-        status: "Pending Verification"
-      })
-      .where(eq(funds.id, id))
-      .returning();
+    const fund = this.funds.get(id);
+    if (!fund) throw new Error("Fund not found");
+    // status must be "Pending Verification"
+    const updated: Fund = { ...fund, ...proof, status: "Pending Verification" };
+    this.funds.set(id, updated);
     return updated;
   }
 
   async verifyFund(id: number, verification: VerifyFundRequest): Promise<Fund> {
-    const [updated] = await db
-      .update(funds)
-      .set({
-        status: verification.status
-      })
-      .where(eq(funds.id, id))
-      .returning();
+    const fund = this.funds.get(id);
+    if (!fund) throw new Error("Fund not found");
+    const updated: Fund = { ...fund, status: verification.status };
+    this.funds.set(id, updated);
     return updated;
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MemStorage();

@@ -1,23 +1,16 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   Wallet, 
   ShieldCheck, 
   LayoutDashboard, 
   History, 
-  Settings, 
   LogOut,
   Menu,
   X
 } from "lucide-react";
-import { stellarService } from "@/lib/stellarService";
+import { useWallet } from "@/context/WalletContext";
 import { Button } from "@/components/ui/button";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -27,35 +20,16 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const [wallet, setWallet] = useState<{ address: string; balance: string } | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const { 
+    isConnected, 
+    address, 
+    balance, 
+    connectWallet, 
+    disconnectWallet, 
+    isConnecting, 
+    network 
+  } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Mock auto-connect or stored session
-  useEffect(() => {
-    const stored = localStorage.getItem("proofpay_wallet");
-    if (stored) {
-      setWallet(JSON.parse(stored));
-    }
-  }, []);
-
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    try {
-      const data = await stellarService.connectWallet();
-      setWallet({ address: data.address, balance: data.balance });
-      localStorage.setItem("proofpay_wallet", JSON.stringify({ address: data.address, balance: data.balance }));
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const handleDisconnect = () => {
-    setWallet(null);
-    localStorage.removeItem("proofpay_wallet");
-  };
 
   const navItems = [
     { label: "Funder Dashboard", href: "/", icon: LayoutDashboard },
@@ -117,31 +91,31 @@ export function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className="p-4 border-t border-border">
-          {wallet ? (
+          {isConnected && address ? (
             <div className="p-4 rounded-xl bg-secondary/50 border border-border/50 space-y-3">
               <div className="flex items-center gap-3">
                 <Avatar className="h-9 w-9 border border-primary/20">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {wallet.address.substring(0, 2)}
+                    {address.substring(0, 2)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 overflow-hidden">
-                  <p className="text-xs font-medium truncate text-foreground">{wallet.address}</p>
-                  <p className="text-xs text-primary font-bold">{wallet.balance}</p>
+                  <p className="text-xs font-medium truncate text-foreground" title={address}>{address}</p>
+                  <p className="text-xs text-primary font-bold">{balance}</p>
                 </div>
               </div>
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="w-full h-8 text-xs gap-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-                onClick={handleDisconnect}
+                onClick={disconnectWallet}
               >
                 <LogOut className="w-3 h-3" /> Disconnect
               </Button>
             </div>
           ) : (
             <Button 
-              onClick={handleConnect} 
+              onClick={connectWallet} 
               disabled={isConnecting}
               className="w-full bg-gradient-to-r from-primary to-indigo-600 shadow-lg shadow-primary/20"
             >
@@ -159,10 +133,16 @@ export function Layout({ children }: LayoutProps) {
             {location === "/" ? "Funder Dashboard" : location.replace("/", "").replace("-", " ")}
           </h2>
           <div className="flex items-center gap-4">
-             {/* Role Switcher or additional header actions could go here */}
-             <div className="text-xs font-mono text-muted-foreground bg-muted px-3 py-1 rounded-full">
-               Network: Testnet
-             </div>
+             {address && (
+              <div className={cn(
+                "text-xs font-mono px-3 py-1 rounded-full border",
+                network?.toLowerCase() === 'testnet' || network?.toLowerCase() === 'test sdf network ; september 2015'
+                  ? "text-green-600 bg-green-50 border-green-200" 
+                  : "text-amber-600 bg-amber-50 border-amber-200"
+              )}>
+                Network: {network || 'Unknown'}
+              </div>
+             )}
           </div>
         </header>
 

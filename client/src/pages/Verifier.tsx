@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useFunds, useVerifyFund } from "@/hooks/use-funds";
+import { useSoroban } from "@/hooks/use-soroban";
+import { useWallet } from "@/context/WalletContext";
 import { FundCard } from "@/components/FundCard";
 import { Button } from "@/components/ui/button";
 import { 
@@ -13,11 +15,12 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Fund } from "@shared/schema";
-import { stellarService } from "@/lib/stellarService";
 
 export default function Verifier() {
-  const { data: funds, isLoading } = useFunds({ role: "Verifier", address: "G_VERIFIER_MOCK" });
+  const { address } = useWallet();
+  const { data: funds, isLoading } = useFunds({ role: "Verifier", address: address || "" });
   const verifyFund = useVerifyFund();
+  const { approveProof, refundFunder, isLoading: isContractLoading } = useSoroban();
   
   const [selectedFund, setSelectedFund] = useState<Fund | null>(null);
   const [processingState, setProcessingState] = useState<'idle' | 'signing' | 'submitting'>('idle');
@@ -31,27 +34,39 @@ export default function Verifier() {
     
     setProcessingState('signing');
     
-    // Simulate smart contract interaction / multi-sig signing
-    await stellarService.signTransaction(decision, {
-      fundId: selectedFund.id,
-      amount: selectedFund.amount,
-      beneficiary: selectedFund.beneficiaryAddress
-    });
-
-    setProcessingState('submitting');
-    
-    verifyFund.mutate({
-      id: selectedFund.id,
-      data: { status: decision }
-    }, {
-      onSuccess: () => {
-        setSelectedFund(null);
-        setProcessingState('idle');
-      },
-      onError: () => {
-        setProcessingState('idle');
+    try {
+      if (decision === 'Approved') {
+        const txResult = await approveProof(selectedFund.id);
+        if (txResult?.status !== 'success') {
+          setProcessingState('idle');
+          return;
+        }
+      } else if (decision === 'Rejected') {
+        const txResult = await refundFunder(selectedFund.id);
+        if (txResult?.status !== 'success') {
+          setProcessingState('idle');
+          return;
+        }
       }
-    });
+
+      setProcessingState('submitting');
+      
+      verifyFund.mutate({
+        id: selectedFund.id,
+        data: { status: decision }
+      }, {
+        onSuccess: () => {
+          setSelectedFund(null);
+          setProcessingState('idle');
+        },
+        onError: () => {
+          setProcessingState('idle');
+        }
+      });
+    } catch (e) {
+      console.error("Verification failed", e);
+      setProcessingState('idle');
+    }
   };
 
   return (
