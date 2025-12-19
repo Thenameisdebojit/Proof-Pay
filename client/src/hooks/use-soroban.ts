@@ -140,6 +140,28 @@ export function useSoroban() {
   };
 
   const submitTx = async (tx: any) => {
+    // Failure Mode Check
+    const demoFailures = localStorage.getItem("proofpay_demo_failures") === "true";
+    if (demoFailures && Math.random() > 0.3) { // 70% chance of failure when enabled
+        const errors = [
+            "Slippage Error: Price impact too high.",
+            "Insufficient Fees: Network congestion detected.",
+            "Ledger Congestion: Transaction timed out.",
+            "Sequence Number Error: Bad nonce."
+        ];
+        const randomError = errors[Math.floor(Math.random() * errors.length)];
+        
+        // Simulate delay before error
+        await new Promise(r => setTimeout(r, 1500));
+        setTxStatus('error');
+        toast({
+            title: "Demo Mode Failure",
+            description: randomError,
+            variant: "destructive"
+        });
+        throw new Error(randomError);
+    }
+
     if (!server) {
         toast({ title: "Configuration Error", description: "Soroban RPC not initialized", variant: "destructive" });
         throw new Error("Soroban RPC not initialized");
@@ -216,6 +238,19 @@ export function useSoroban() {
     if (CONTRACT_ID.startsWith("CD73R2Q3")) {
         console.warn("Using Dummy Contract ID - Simulating Fund Creation");
         setIsLoading(true);
+        
+        // Failure Mode Check (Mock)
+        const demoFailures = localStorage.getItem("proofpay_demo_failures") === "true";
+        if (demoFailures && Math.random() > 0.3) {
+            setTxStatus('signing');
+            await new Promise(r => setTimeout(r, 1000));
+            setTxStatus('error');
+            const randomError = "Insufficient Fees: Network congestion detected.";
+            toast({ title: "Demo Mode Failure", description: randomError, variant: "destructive" });
+            setIsLoading(false);
+            throw new Error(randomError);
+        }
+
         setTxStatus('simulating');
         await new Promise(r => setTimeout(r, 500));
         setTxStatus('signing');
@@ -295,6 +330,19 @@ export function useSoroban() {
     
     if (CONTRACT_ID.startsWith("CD73R2Q3")) {
          setIsLoading(true);
+         
+         // Failure Mode Check (Mock)
+         const demoFailures = localStorage.getItem("proofpay_demo_failures") === "true";
+         if (demoFailures && Math.random() > 0.3) {
+            setTxStatus('signing');
+            await new Promise(r => setTimeout(r, 1000));
+            setTxStatus('error');
+            const randomError = "Sequence Number Error: Bad nonce.";
+            toast({ title: "Demo Mode Failure", description: randomError, variant: "destructive" });
+            setIsLoading(false);
+            throw new Error(randomError);
+         }
+
          setTxStatus('signing');
          await new Promise(r => setTimeout(r, 500));
          
@@ -328,7 +376,7 @@ export function useSoroban() {
             "submit_proof",
             new Address(address).toScVal(),
             nativeToScVal(BigInt(fundId), { type: 'u64' }),
-            xdr.ScVal.scvBytes(hexToBytes(proofHash))
+            xdr.ScVal.scvBytes(hexToBytes(proofHash) as any)
           )
         )
         .setTimeout(TimeoutInfinite)
@@ -359,6 +407,19 @@ export function useSoroban() {
 
     if (CONTRACT_ID.startsWith("CD73R2Q3")) {
          setIsLoading(true);
+
+         // Failure Mode Check (Mock)
+         const demoFailures = localStorage.getItem("proofpay_demo_failures") === "true";
+         if (demoFailures && Math.random() > 0.3) {
+            setTxStatus('signing');
+            await new Promise(r => setTimeout(r, 1000));
+            setTxStatus('error');
+            const randomError = "Ledger Congestion: Transaction timed out.";
+            toast({ title: "Demo Mode Failure", description: randomError, variant: "destructive" });
+            setIsLoading(false);
+            throw new Error(randomError);
+         }
+
          setTxStatus('signing');
          await new Promise(r => setTimeout(r, 500));
          
@@ -397,7 +458,15 @@ export function useSoroban() {
       const explorerUrl = `https://stellar.expert/explorer/testnet/tx/${result?.hash}`;
       toast({ title: "Proof Approved", description: `Tx: ${result?.hash} - Check Explorer: ${explorerUrl}` });
       return result;
-    } catch (e) {
+    } catch (e: any) {
+      console.error("Approve Proof Error:", e);
+      setTxStatus('error');
+      toast({ 
+        title: "Approval Failed", 
+        description: formatError(e), 
+        variant: "destructive" 
+      });
+      throw e;
     } finally {
       setIsLoading(false);
       setTimeout(() => setTxStatus('idle'), 3000);
@@ -412,6 +481,19 @@ export function useSoroban() {
 
     if (CONTRACT_ID.startsWith("CD73R2Q3")) {
          setIsLoading(true);
+
+         // Failure Mode Check (Mock)
+         const demoFailures = localStorage.getItem("proofpay_demo_failures") === "true";
+         if (demoFailures && Math.random() > 0.3) {
+            setTxStatus('signing');
+            await new Promise(r => setTimeout(r, 1000));
+            setTxStatus('error');
+            const randomError = "Slippage Error: Price impact too high.";
+            toast({ title: "Demo Mode Failure", description: randomError, variant: "destructive" });
+            setIsLoading(false);
+            throw new Error(randomError);
+         }
+
          setTxStatus('signing');
          await new Promise(r => setTimeout(r, 500));
          
@@ -473,6 +555,19 @@ export function useSoroban() {
 
     if (CONTRACT_ID.startsWith("CD73R2Q3")) {
          setIsLoading(true);
+
+         // Failure Mode Check (Mock)
+         const demoFailures = localStorage.getItem("proofpay_demo_failures") === "true";
+         if (demoFailures && Math.random() > 0.3) {
+            setTxStatus('signing');
+            await new Promise(r => setTimeout(r, 1000));
+            setTxStatus('error');
+            const randomError = "Insufficient Fees: Network congestion detected.";
+            toast({ title: "Demo Mode Failure", description: randomError, variant: "destructive" });
+            setIsLoading(false);
+            throw new Error(randomError);
+         }
+
          setTxStatus('signing');
          await new Promise(r => setTimeout(r, 500));
          

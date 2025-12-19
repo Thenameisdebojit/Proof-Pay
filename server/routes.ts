@@ -84,6 +84,11 @@ export async function registerRoutes(
   });
 
   // Seed data function
+  app.post('/api/log-error', (req, res) => {
+    console.error("CLIENT SIDE ERROR:", req.body);
+    res.sendStatus(200);
+  });
+
   async function seedDatabase() {
     const existing = await storage.getFunds();
     if (existing.length === 0) {
@@ -94,19 +99,14 @@ export async function registerRoutes(
         amount: "1000",
         conditions: "Must maintain GPA > 3.5",
         deadline: "2025-12-31",
-        ipfsHash: "",
-        proofDescription: "",
       });
        await storage.createFund({
         funderAddress: "GBA...",
         beneficiaryAddress: "GBC...",
         verifierAddress: "GBV...",
         amount: "500",
-        conditions: "Complete CS101",
-        deadline: "2025-06-30",
-        status: "Pending Verification",
-        ipfsHash: "QmHash...",
-        proofDescription: "Transcript attached",
+        conditions: "Completion of Module 1",
+        deadline: "2024-06-30",
       });
     }
   }

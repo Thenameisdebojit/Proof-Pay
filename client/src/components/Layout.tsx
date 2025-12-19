@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   Wallet, 
@@ -6,7 +6,12 @@ import {
   LayoutDashboard, 
   History, 
   Menu,
-  X
+  X,
+  Sun,
+  Moon,
+  Zap,
+  RefreshCw,
+  ExternalLink
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { Button } from "@/components/ui/button";
@@ -14,12 +19,17 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuTrigger 
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { SystemStatus } from "./SystemStatus";
+import { useTheme } from "./theme-provider";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface LayoutProps {
   children: ReactNode;
@@ -30,7 +40,24 @@ export function Layout({ children }: LayoutProps) {
   const { isConnected, address, balance, connectWallet, disconnectWallet, isConnecting } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isDemoMode = (import.meta.env.VITE_CONTRACT_ID || "CD73R2Q3").startsWith("CD73R2Q3");
+  const { theme, setTheme } = useTheme();
+  const [lastSynced, setLastSynced] = useState<number>(Date.now());
+  const [demoFailures, setDemoFailures] = useState(() => {
+     return localStorage.getItem("proofpay_demo_failures") === "true";
+  });
 
+  // Sync Timer Logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+        // Just for visual effect of "synced X ago"
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Expose Demo Mode Failure State
+  useEffect(() => {
+    localStorage.setItem("proofpay_demo_failures", String(demoFailures));
+  }, [demoFailures]);
 
   const handleConnect = async () => {
     try {
@@ -45,10 +72,13 @@ export function Layout({ children }: LayoutProps) {
     { label: "Beneficiary Portal", href: "/beneficiary", icon: Wallet },
     { label: "Verifier Portal", href: "/verifier", icon: ShieldCheck },
     { label: "History", href: "/history", icon: History },
+    { label: "System Status", href: "/status", icon: Zap },
   ];
 
+  const timeSinceSync = Math.floor((Date.now() - lastSynced) / 1000);
+
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row font-body text-foreground">
+    <div className="min-h-screen bg-background flex flex-col md:flex-row font-body text-foreground transition-colors duration-300">
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b bg-card">
         <div className="flex items-center gap-2">
@@ -74,7 +104,7 @@ export function Layout({ children }: LayoutProps) {
           <div>
             <div className="flex items-center gap-2">
                 <h1 className="font-display font-bold text-xl tracking-tight">ProofPay</h1>
-                {isDemoMode && <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-amber-100 text-amber-800 hover:bg-amber-100">DEMO</Badge>}
+                {isDemoMode && <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">DEMO</Badge>}
             </div>
             <p className="text-xs text-muted-foreground font-medium">Conditional Disbursements</p>
           </div>
@@ -99,62 +129,91 @@ export function Layout({ children }: LayoutProps) {
           ))}
         </nav>
 
-        <SystemStatus />
-      </aside>
+        {/* Sync Status Badge */}
+        <div className="px-6 py-2">
+             <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/50 px-2 py-1 rounded-full w-fit">
+                <RefreshCw className="w-3 h-3 animate-pulse text-green-500" />
+                <span>Synced {timeSinceSync < 60 ? `${timeSinceSync}s` : '1m'} ago</span>
+             </div>
+        </div>
 
-      {/* Main Content */}
-      <main className={cn(
-        "flex-1 transition-all duration-200 ease-in-out",
-        mobileMenuOpen ? "ml-64" : "ml-0"
-      )}>
-        {/* Header Strip */}
-        <header className="h-16 border-b bg-background/80 backdrop-blur-sm sticky top-0 z-40 px-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              <Menu />
-            </Button>
-            <h2 className="font-display font-semibold text-lg capitalize">
-              {location === "/" ? "Funder Dashboard" : location.replace("/", "").replace("-", " ")}
-            </h2>
+        {/* Demo Controls */}
+        {isDemoMode && (
+          <div className="px-6 py-2 space-y-2">
+            <div className="flex items-center space-x-2">
+              <Switch id="demo-failures" checked={demoFailures} onCheckedChange={setDemoFailures} />
+              <Label htmlFor="demo-failures" className="text-xs font-medium">Test Failure Modes</Label>
+            </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-             <div className="hidden md:block text-xs font-mono text-muted-foreground bg-muted px-3 py-1 rounded-full">
-               Network: Testnet
+        )}
+
+        <div className="p-4 border-t border-border space-y-4">
+             {/* Theme Toggle */}
+             <div className="flex justify-between items-center px-2">
+                 <span className="text-xs font-medium text-muted-foreground">Theme</span>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                 </Button>
              </div>
 
-             {/* Wallet Connection - Moved to Header */}
-             {isConnected && address ? (
+             <SystemStatus />
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Bar */}
+        <header className="h-16 border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50 flex items-center justify-between px-6 sticky top-0 z-40">
+           <h2 className="text-lg font-semibold tracking-tight hidden md:block">
+              {navItems.find(i => i.href === location)?.label || "Dashboard"}
+           </h2>
+
+           <div className="flex items-center gap-4 ml-auto">
+              {!isConnected ? (
+                <Button onClick={handleConnect} disabled={isConnecting} className="shadow-sm">
+                  {isConnecting ? (
+                    <>Connecting...</> 
+                  ) : (
+                    <>
+                      <Wallet className="mr-2 w-4 h-4" />
+                      Connect Wallet
+                    </>
+                  )}
+                </Button>
+              ) : (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="flex items-center gap-2 border-border/50 bg-secondary/50 hover:bg-secondary/80 transition-all">
-                      <div className="flex flex-col items-end text-xs mr-1">
-                        <span className="font-mono font-medium">{balance}</span>
-                        <span className="text-muted-foreground">{address.substring(0, 4)}...{address.substring(address.length - 4)}</span>
+                    <Button variant="outline" className="pl-2 pr-4 gap-2 h-9 border-muted-foreground/20">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 flex items-center justify-center text-[10px] text-white font-bold">
+                        {address?.charAt(0)}
                       </div>
-                      <Avatar className="h-8 w-8 border-2 border-primary/20">
-                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                          {address.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <span className="hidden sm:inline-block font-mono text-xs">
+                        {address?.substring(0, 4)}...{address?.slice(-4)}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={disconnectWallet} className="text-destructive focus:text-destructive cursor-pointer">
-                       Disconnect Wallet
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground font-mono bg-muted/50 mx-1 rounded">
+                       {balance}
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-xs gap-2">
+                      <ExternalLink className="w-3 h-3" />
+                      View on Stellar Expert
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={disconnectWallet} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20">
+                      Disconnect Wallet
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              ) : (
-                <Button onClick={handleConnect} disabled={isConnecting} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-                  {isConnecting ? "Connecting..." : "Connect Wallet"}
-                </Button>
               )}
-          </div>
+           </div>
         </header>
 
-        <div className="p-6 max-w-7xl mx-auto space-y-8 animate-enter">
-          {children}
+        <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">
+           {children}
         </div>
       </main>
     </div>

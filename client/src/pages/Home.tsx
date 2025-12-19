@@ -28,19 +28,24 @@ import { Plus, Wallet, Users, Lock, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { useWallet } from "@/context/WalletContext";
 import { TxStatus } from "@/hooks/use-soroban";
+import { TransactionSuccess } from "@/components/TransactionSuccess";
 
 // Funder Dashboard
 
 export default function Home() {
-  const { address, isConnected } = useWallet();
+  const { address, isConnected, balance } = useWallet();
   const { data: funds, isLoading } = useFunds({ role: "Funder", address: address || "" });
   const createFund = useCreateFund();
   const [open, setOpen] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
   // Stats calculation
   const totalLocked = funds?.reduce((acc, fund) => acc + parseFloat(fund.amount), 0).toFixed(2) || "0.00";
   const activeBeneficiaries = new Set(funds?.map(f => f.beneficiaryAddress)).size || 0;
   const pendingVerifications = funds?.filter(f => f.status === "Pending Verification").length || 0;
+
+  // Add this
+  const estimatedFee = "0.0001"; // Fixed fee for now
 
   const form = useForm<z.infer<typeof insertFundSchema>>({
     resolver: zodResolver(insertFundSchema),
@@ -76,9 +81,12 @@ export default function Home() {
   const onSubmit = (data: z.infer<typeof insertFundSchema>) => {
     if (!isConnected) return;
     createFund.mutate(data, {
-      onSuccess: () => {
+      onSuccess: (result: any) => {
         setOpen(false);
         form.reset();
+        if (result?.hash) {
+            setLastTxHash(result.hash);
+        }
         // Reset default address
         if (address) form.setValue("funderAddress", address);
       }
@@ -125,6 +133,12 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {lastTxHash && (
+        <div className="mt-8">
+          <TransactionSuccess hash={lastTxHash} onDismiss={() => setLastTxHash(null)} />
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-8">
         <h2 className="text-2xl font-display font-bold">Your Funds</h2>
@@ -220,11 +234,30 @@ export default function Home() {
                   )}
                 />
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button variant="outline" type="button" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={createFund.isPending}>
-                    {createFund.isPending ? getStatusMessage(createFund.txStatus) : "Create Fund"}
-                  </Button>
+                <div className="pt-4 border-t border-border mt-4">
+                  <div className="flex justify-between text-xs mb-2">
+                    <span className="text-muted-foreground">Current Balance:</span>
+                    <span className="font-mono">{isConnected ? `${balance} XLM` : '---'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs mb-2">
+                    <span className="text-muted-foreground">Estimated Fee:</span>
+                    <span className="font-mono text-amber-600 dark:text-amber-400">~{estimatedFee} XLM</span>
+                  </div>
+                  <div className="flex justify-between text-xs mb-4 font-medium">
+                     <span className="text-muted-foreground">Est. New Balance:</span>
+                     <span className="font-mono">
+                       {isConnected && balance && form.watch('amount') 
+                         ? `${(parseFloat(balance) - parseFloat(form.watch('amount') || "0") - parseFloat(estimatedFee)).toFixed(4)} XLM` 
+                         : '---'}
+                     </span>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" type="button" onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={createFund.isPending}>
+                      {createFund.isPending ? getStatusMessage(createFund.txStatus) : "Create Fund"}
+                    </Button>
+                  </div>
                 </div>
               </form>
             </Form>

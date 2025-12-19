@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TransactionSuccess } from "@/components/TransactionSuccess";
 
 export default function Verifier() {
   const { address } = useWallet();
@@ -18,6 +19,7 @@ export default function Verifier() {
   
   const [selectedFund, setSelectedFund] = useState<any>(null);
   const [aiVerified, setAiVerified] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
   const getStatusMessage = (status: TxStatus) => {
     switch (status) {
@@ -41,17 +43,19 @@ export default function Verifier() {
         return;
     }
     
-    await approveProof(selectedFund.id);
+    const result = await approveProof(selectedFund.id);
     setSelectedFund(null);
     setAiVerified(false);
+    if (result?.hash) setLastTxHash(result.hash);
   };
 
   const handleReject = async () => {
     if (!selectedFund) return;
     // Refund funder is equivalent to rejection in this flow context
-    await refundFunder(selectedFund.id);
+    const result = await refundFunder(selectedFund.id);
     setSelectedFund(null);
     setAiVerified(false);
+    if (result?.hash) setLastTxHash(result.hash);
   };
 
   return (
@@ -60,6 +64,12 @@ export default function Verifier() {
         <h1 className="text-3xl font-display font-bold">Verification Dashboard</h1>
         <p className="text-muted-foreground">Review proofs and authorize fund releases.</p>
       </div>
+
+      {lastTxHash && (
+        <div className="mb-8">
+          <TransactionSuccess hash={lastTxHash} onDismiss={() => setLastTxHash(null)} />
+        </div>
+      )}
 
       <div className="space-y-8">
         {/* Pending Section */}
@@ -124,20 +134,27 @@ export default function Verifier() {
                 </p>
             </div>
 
-            <AIVerificationPanel onVerificationComplete={setAiVerified} />
+            <AIVerificationPanel onVerificationComplete={setAiVerified} fundData={selectedFund} />
 
-            <div className="flex gap-3 justify-end pt-4">
-                <Button variant="outline" onClick={handleReject} disabled={isTxLoading}>
-                    {isTxLoading ? getStatusMessage(txStatus) : "Reject (Refund Funder)"}
-                </Button>
-                <Button 
-                    onClick={handleApprove} 
-                    disabled={isTxLoading || !aiVerified}
-                    className={aiVerified ? "bg-green-600 hover:bg-green-700" : ""}
-                >
-                    {isTxLoading ? <Loader2 className="animate-spin mr-2" /> : null}
-                    {isTxLoading ? getStatusMessage(txStatus) : "Approve & Sign"}
-                </Button>
+            <div className="pt-4 border-t border-border">
+                <div className="flex justify-between text-xs mb-4 px-1">
+                   <span className="text-muted-foreground">Estimated Network Fee:</span>
+                   <span className="font-mono text-amber-600 dark:text-amber-400">~0.0001 XLM</span>
+                </div>
+                
+                <div className="flex gap-3 justify-end">
+                    <Button variant="outline" onClick={handleReject} disabled={isTxLoading}>
+                        {isTxLoading ? getStatusMessage(txStatus) : "Reject (Refund Funder)"}
+                    </Button>
+                    <Button 
+                        onClick={handleApprove} 
+                        disabled={isTxLoading || !aiVerified}
+                        className={aiVerified ? "bg-green-600 hover:bg-green-700" : ""}
+                    >
+                        {isTxLoading ? <Loader2 className="animate-spin mr-2" /> : null}
+                        {isTxLoading ? getStatusMessage(txStatus) : "Approve & Sign"}
+                    </Button>
+                </div>
             </div>
           </div>
         </DialogContent>

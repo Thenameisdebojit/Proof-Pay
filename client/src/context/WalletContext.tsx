@@ -91,7 +91,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
            console.log("Albedo result:", result);
            
            const key = result.pubkey;
-           const signedMessage = result.signature; // Albedo returns signature if token is provided
+           // const signedMessage = result.signature; // Albedo returns signature if token is provided
            
            if (!key) throw new Error("No public key returned");
 

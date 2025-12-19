@@ -9,6 +9,7 @@ import Home from "@/pages/Home";
 import Beneficiary from "@/pages/Beneficiary";
 import Verifier from "@/pages/Verifier";
 import History from "@/pages/History";
+import SystemStatusPage from "@/pages/SystemStatus";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/beneficiary" component={Beneficiary} />
       <Route path="/verifier" component={Verifier} />
       <Route path="/history" component={History} />
+      <Route path="/status" component={SystemStatusPage} />
       <Route component={NotFound} />
     </Switch>
   );

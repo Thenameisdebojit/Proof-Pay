@@ -55,16 +55,16 @@ export function FundTimeline({ status, createdAt, deadline }: FundTimelineProps)
           {/* Connecting Line */}
           {idx !== steps.length - 1 && (
             <div className={cn(
-              "absolute left-3 top-7 bottom-0 w-0.5",
+              "absolute left-3 top-7 bottom-0 w-0.5 transition-colors duration-700 ease-in-out",
               step.status === 'completed' ? "bg-primary" : "bg-border"
             )} />
           )}
 
           {/* Icon */}
           <div className={cn(
-            "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
+            "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-500",
             step.status === 'completed' ? "bg-primary border-primary text-primary-foreground" :
-            step.status === 'current' ? "border-primary bg-background text-primary ring-2 ring-primary/20" :
+            step.status === 'current' ? "border-primary bg-background text-primary ring-2 ring-primary/20 scale-110" :
             step.status === 'rejected' ? "bg-destructive border-destructive text-destructive-foreground" :
             "border-muted-foreground/30 bg-background text-muted-foreground"
           )}>

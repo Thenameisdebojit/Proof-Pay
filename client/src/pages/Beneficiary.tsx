@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TxStatus } from "@/hooks/use-soroban";
+import { TransactionSuccess } from "@/components/TransactionSuccess";
 import { 
   Dialog, 
   DialogContent, 
@@ -27,6 +28,7 @@ export default function Beneficiary() {
   const [selectedFund, setSelectedFund] = useState<OnChainFund | null>(null);
   const [description, setDescription] = useState("");
   const [ipfsHash, setIpfsHash] = useState("");
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,16 +38,21 @@ export default function Beneficiary() {
       id: selectedFund.id,
       data: { proofDescription: description, ipfsHash }
     }, {
-      onSuccess: () => {
+      onSuccess: (result: any) => {
         setSelectedFund(null);
         setDescription("");
         setIpfsHash("");
+        if (result?.hash) setLastTxHash(result.hash);
       }
     });
   };
 
   const handleClaim = (fund: OnChainFund) => {
-    releaseFunds.mutate(fund.id);
+    releaseFunds.mutate(fund.id, {
+        onSuccess: (result: any) => {
+            if (result?.hash) setLastTxHash(result.hash);
+        }
+    });
   };
 
   const getStatusMessage = (status: TxStatus) => {
@@ -66,6 +73,12 @@ export default function Beneficiary() {
         <h1 className="text-3xl font-display font-bold">Scholarship Portal</h1>
         <p className="text-muted-foreground">Submit proofs to unlock your conditional funds.</p>
       </div>
+
+      {lastTxHash && (
+        <div className="mt-8">
+          <TransactionSuccess hash={lastTxHash} onDismiss={() => setLastTxHash(null)} />
+        </div>
+      )}
 
       {isLoading ? (
         <div className="h-64 flex items-center justify-center">

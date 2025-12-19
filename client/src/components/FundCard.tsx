@@ -96,17 +96,23 @@ export function FundCard({ fund, role, onAction, actionLabel, isActionLoading }:
           </div>
         </div>
         
-        {/* Guided Flow Box */}
+        {/* Guided Flow Box - What Happens Next? */}
         {flow && (
-            <div className="bg-blue-50 border border-blue-100 rounded-md p-3 text-xs space-y-1">
-                <div className="flex justify-between font-semibold text-blue-900">
-                    <span>Next: {flow.next}</span>
-                    <span className="uppercase text-[10px] bg-blue-200 px-1 rounded">{flow.who}</span>
+          <div className="mt-4 p-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/50"></div>
+             <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">
+                What Happens Next?
+             </p>
+             <div className="flex items-start gap-2">
+                <div className="p-1 bg-blue-100 dark:bg-blue-800 rounded-full mt-0.5">
+                    <ArrowRight className="w-3 h-3 text-blue-600 dark:text-blue-300" />
                 </div>
-                <div className="text-blue-700">
-                    ⚠️ {flow.consequence}
+                <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">{flow.next}</p>
+                    <p className="text-xs text-muted-foreground">{flow.consequence}</p>
                 </div>
-            </div>
+             </div>
+          </div>
         )}
 
         {fund.proofDescription && (
@@ -117,7 +123,7 @@ export function FundCard({ fund, role, onAction, actionLabel, isActionLoading }:
       </CardContent>
 
       {onAction && (
-        <CardFooter className="bg-muted/10 pt-4">
+        <CardFooter className="px-0 pt-4 flex gap-2 justify-end border-t mt-2">
           <Button 
             className="w-full gap-2" 
             onClick={() => onAction(fund)}
