@@ -1,10 +1,17 @@
 
-import { StellarWalletsKit, WalletNetwork, ALLOW_ALL_MODULES } from '@creit-tech/stellar-wallets-kit';
+import { StellarWalletsKit, Networks } from '@creit-tech/stellar-wallets-kit';
+import { AlbedoModule } from '@creit-tech/stellar-wallets-kit/modules/albedo';
+import { FreighterModule } from '@creit-tech/stellar-wallets-kit/modules/freighter';
+import { xBullModule } from '@creit-tech/stellar-wallets-kit/modules/xbull';
 
 // Initialize the kit with default modules (Albedo, Freighter, etc.)
 export const kit = new StellarWalletsKit({
-    modules: ALLOW_ALL_MODULES,
-    network: WalletNetwork.TESTNET,
+    modules: [
+        new AlbedoModule(),
+        new FreighterModule(),
+        new xBullModule(),
+    ],
+    network: Networks.TESTNET,
     selectedWalletId: "albedo", // Defaulting to Albedo as requested, but user can change
 });
 
