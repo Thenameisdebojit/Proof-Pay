@@ -3,18 +3,15 @@ import { Layout } from "@/components/Layout";
 import { useFunds, useVerifyFund } from "@/hooks/use-funds";
 import { FundCard } from "@/components/FundCard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogDescription,
-  DialogFooter
+  DialogDescription
 } from "@/components/ui/dialog";
-import { Loader2, CheckCircle, XCircle, Lock, Copy, AlertTriangle, Check, ShieldCheck, Info } from "lucide-react";
+import { Loader2, CheckCircle, Copy, ShieldCheck, Info } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { AIVerificationPanel } from "@/components/AIVerificationPanel";
 import { Badge } from "@/components/ui/badge";
@@ -75,44 +72,6 @@ export default function Verifier() {
   const copyToClipboard = (text: string) => {
       navigator.clipboard.writeText(text);
   };
-
-  if (!isLoggedIn) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Card className="w-full max-w-md shadow-lg border-t-4 border-t-indigo-600">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-100">
-                <Lock className="w-5 h-5 text-indigo-600" />
-                Verifier Portal
-              </CardTitle>
-              <CardDescription>Secure access for Institution Verifiers.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Access Key</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter access key..."
-                    className="focus:ring-indigo-500"
-                  />
-                  {loginError && <p className="text-sm text-destructive font-medium">{loginError}</p>}
-                </div>
-                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">Access Dashboard</Button>
-                <div className="text-xs text-center text-muted-foreground mt-4">
-                    <p>Demo Key: <code className="bg-muted px-1 py-0.5 rounded">admin123</code></p>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>

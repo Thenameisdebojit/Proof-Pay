@@ -27,10 +27,13 @@ import { insertFundSchema } from "@shared/schema";
 import { Plus, Wallet, Users, Lock, Loader2 } from "lucide-react";
 import { z } from "zod";
 
+import { useWallet } from "@/context/WalletContext";
+
 // Funder Dashboard
 
 export default function Home() {
-  const { data: funds, isLoading } = useFunds({ role: "Funder" });
+  const { address } = useWallet();
+  const { data: funds, isLoading } = useFunds({ role: "Funder", address: address || "" });
   const createFund = useCreateFund();
   const [open, setOpen] = useState(false);
 
@@ -42,9 +45,9 @@ export default function Home() {
   const form = useForm<z.infer<typeof insertFundSchema>>({
     resolver: zodResolver(insertFundSchema),
     defaultValues: {
-      funderAddress: "GDA...MOCK", // Ideally from context
-      beneficiaryAddress: "G_BENEFICIARY_MOCK", // Default for demo
-      verifierAddress: "G_VERIFIER_MOCK", // Default for demo
+      funderAddress: address || "", 
+      beneficiaryAddress: "", 
+      verifierAddress: "", 
       amount: "",
       conditions: "",
       requiredDocuments: "Proof Document", // Default value

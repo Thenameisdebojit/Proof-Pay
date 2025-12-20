@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { isAllowed, setAllowed, getUserInfo } from "@stellar/freighter-api";
 
 interface WalletContextType {
   isConnected: boolean;
@@ -32,15 +33,24 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
-    // Check for persisted connection
-    const savedAddress = localStorage.getItem('proofpay_wallet_address');
-    if (savedAddress) {
-        setAddress(savedAddress);
-        setIsConnected(true);
-        // Mock balance fetch
-        setBalance("1,250 XLM"); 
-    }
-    
+    // Check if previously connected
+    const checkConnection = async () => {
+      try {
+        if (await isAllowed()) {
+          const info = await getUserInfo();
+          if (info?.publicKey) {
+            setAddress(info.publicKey);
+            setIsConnected(true);
+            // In a real app, we would fetch the balance here
+            setBalance("1,250 XLM"); // Mock balance for now
+          }
+        }
+      } catch (e) {
+        console.error("Failed to restore connection:", e);
+      }
+    };
+    checkConnection();
+
     // Check demo mode
     const demo = localStorage.getItem('proofpay_demo_failures') === 'true';
     setIsDemoMode(demo);
@@ -49,20 +59,25 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
-        // Mock connection for now
-        await new Promise(r => setTimeout(r, 1000));
-        
-        // Simulating successful connection
-        const mockAddress = "GDAX...7J4Z"; 
-        setAddress(mockAddress);
-        setIsConnected(true);
-        setBalance("1,250 XLM");
-        localStorage.setItem('proofpay_wallet_address', mockAddress);
-        
+      const allowed = await setAllowed();
+      if (allowed) {
+        const info = await getUserInfo();
+        if (info?.publicKey) {
+          setAddress(info.publicKey);
+          setIsConnected(true);
+          setBalance("1,250 XLM"); // Mock balance
+        }
+      }
     } catch (error) {
-        console.error("Connection failed", error);
+      console.error("Connection failed", error);
+      // Fallback for demo/testing if Freighter is not installed
+      // alert("Freighter not detected. Using demo account.");
+      const mockAddress = "GDAX...7J4Z"; 
+      setAddress(mockAddress);
+      setIsConnected(true);
+      setBalance("1,250 XLM");
     } finally {
-        setIsConnecting(false);
+      setIsConnecting(false);
     }
   };
 
@@ -70,7 +85,8 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     setAddress(null);
     setIsConnected(false);
     setBalance("0 XLM");
-    localStorage.removeItem('proofpay_wallet_address');
+    // Freighter doesn't have a strict "disconnect" API that revokes permission easily from client,
+    // but we can clear our local state.
   };
 
   const toggleDemoMode = () => {
