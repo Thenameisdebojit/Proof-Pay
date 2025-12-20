@@ -1,0 +1,47 @@
+Project Title: ProofPay - Conditional Scholarship Disbursement Frontend Tech Stack: React (Vite), Tailwind CSS, Lucide-react, Shadcn UI (Radix), Stellar SDK, Freighter Wallet Integration.
+
+Core Objective: Build a complete, role-based dashboard for ProofPay. There are 3 roles: Funder (University), Beneficiary (Student), and Verifier (Admin).
+
+Requirement 1: Dashboard Navigation & Role Switcher
+
+Top Navbar: "ProofPay" logo, Wallet Connection button (Freighter), and a Role Switcher (Tabs or Dropdown: Funder / Beneficiary / Verifier) for demo purposes.
+
+Sidebar: Dashboard Home, Active Funds, History, Settings.
+
+Requirement 2: Role-Based Views
+
+Funder View (University): > - Dashboard: Stats (Total Funds Locked, Active Beneficiaries).
+
+Action: "Create New Fund" Form. Fields: Beneficiary Address, Amount (XLM), Conditions (Textarea), Verifier Address, Deadline.
+
+List: "Your Created Funds" table showing status (Locked, Approved, Released).
+
+Beneficiary View (Student): > - List: "Eligible Funds" table showing funds assigned to their address.
+
+Action: "Submit Proof" Modal. Fields: Fund ID (Auto-filled), IPFS Document Hash, Description.
+
+Verifier View (Admin): > - List: "Pending Verifications" table. Show Fund ID, Beneficiary Address, and IPFS Hash.
+
+Action: Approve/Reject buttons. On click, trigger a success notification simulating a Soroban transaction.
+
+Requirement 3: UI/UX Style
+
+Modern, professional "FinTech" aesthetic. Use a Dark/Light mode toggle.
+
+Use Tailwind Indigo/Slate color palette.
+
+Loading states for transactions. Success/Error toasts (Sonner or Toast).
+
+Requirement 4: Blockchain Simulation Layer
+
+Create a stellarService.js file. Initially, use mock data and setTimeout to simulate stellar contract invoke.
+
+Include placeholders for kit.getPublicKey() and kit.signTransaction() using the Freighter @stellar/freighter-api.
+
+Requirement 5: App Structure
+
+Use a main App.jsx with a useState for the current role.
+
+Separate components: FundCard, RoleStats, ProofSubmissionModal, VerificationTable.
+
+Execute now: Build the full UI with all forms, tables, and mock logic in one go.
