@@ -51,7 +51,8 @@ export default function Verifier() {
     try {
         await verifyFund.mutateAsync({
             id: selectedFund.id,
-            decision: 'approve'
+            decision: 'approve',
+            status: 'Released'
         });
         setApprovalStep('submitted');
         

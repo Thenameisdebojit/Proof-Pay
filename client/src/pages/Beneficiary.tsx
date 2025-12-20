@@ -87,7 +87,8 @@ export default function Beneficiary() {
 
     submitProof.mutate({
       id: selectedFund.id,
-      proofHash: proofHash
+      proofHash: proofHash,
+      proofDescription: finalDescription
     }, {
       onSuccess: () => {
         setSelectedFund(null);

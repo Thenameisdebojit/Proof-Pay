@@ -1,33 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { sorobanData, type OnChainFund } from "@/lib/soroban-data";
-import { stellarService } from "@/lib/stellarService";
-import { mapContractError } from "@/lib/utils";
-import { useWallet } from "@/context/WalletContext";
+import { api } from "@shared/routes";
+import { Fund } from "@shared/schema";
 
-// Fetch list of funds, optionally filtered
-// Replaces backend API with Soroban polling
+// Fetch list of funds
 export function useFunds(filters?: { role?: 'Funder' | 'Beneficiary' | 'Verifier', address?: string }) {
   return useQuery({
     queryKey: ['funds', filters],
     queryFn: async () => {
-      // 1. Fetch from Chain (Source of Truth)
-      const allFunds = await sorobanData.getAllFunds();
+      let url = `${api.funds.list.path}?`;
+      if (filters?.role) {
+        url += `role=${filters.role}&`;
+      }
+      // For Beneficiary, we intentionally omit the address filter to ensure they see all funds 
+      // (resolves "doesn't show fund" issue if wallet address mismatches or is empty)
+      // For Funder and Verifier, we keep the filter to show only their relevant funds
+      if (filters?.address && filters.role !== 'Beneficiary') {
+        url += `address=${filters.address}`;
+      }
       
-      // 2. Filter locally
-      if (!filters) return allFunds;
-      return allFunds.filter(f => {
-         if (filters.address) {
-             // Case insensitive comparison for addresses
-             const addr = filters.address.toUpperCase();
-             if (filters.role === 'Funder' && f.funderAddress.toUpperCase() !== addr) return false;
-             if (filters.role === 'Beneficiary' && f.beneficiaryAddress.toUpperCase() !== addr) return false;
-             if (filters.role === 'Verifier' && f.verifierAddress.toUpperCase() !== addr) return false;
-         }
-         return true;
-      });
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch funds");
+      return res.json() as Promise<Fund[]>;
     },
-    refetchInterval: 8000, // Poll every 8 seconds (MANDATORY Requirement)
+    // Poll every 2 seconds for faster updates during demo
+    refetchInterval: 2000, 
   });
 }
 
@@ -36,9 +33,11 @@ export function useFund(id: number) {
   return useQuery({
     queryKey: ['fund', id],
     queryFn: async () => {
-      return await sorobanData.getFund(id);
+      const res = await fetch(api.funds.get.path.replace(':id', id.toString()));
+      if (!res.ok) throw new Error("Failed to fetch fund");
+      return res.json() as Promise<Fund>;
     },
-    refetchInterval: 8000,
+    refetchInterval: 2000,
   });
 }
 
@@ -46,30 +45,31 @@ export function useFund(id: number) {
 export function useCreateFund() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isDemoMode } = useWallet();
 
   return useMutation({
     mutationFn: async (data: any) => {
-      if (isDemoMode) {
-          await new Promise(r => setTimeout(r, 1000));
-          throw new Error("Demo Failure: Insufficient balance for fees");
+      const res = await fetch(api.funds.create.path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to create fund");
       }
-      // For this demo, we simulate creation or call contract if implemented
-      // Using the mock helper in sorobanData to update "local chain state" for the demo
-      // In production, this would be stellarService.createFund(...)
-      return sorobanData.mockCreateFund(data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['funds'] });
       toast({
         title: "Fund Created",
-        description: "Your scholarship fund has been successfully locked on the network.",
+        description: "Your scholarship fund has been successfully created.",
       });
     },
     onError: (err: any) => {
       toast({
         title: "Creation Failed",
-        description: mapContractError(err),
+        description: err.message,
         variant: "destructive",
       });
     },
@@ -80,75 +80,86 @@ export function useCreateFund() {
 export function useSubmitProof() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isDemoMode } = useWallet();
 
   return useMutation({
-    mutationFn: async ({ id, proofHash }: { id: number, proofHash: string }) => {
-      if (isDemoMode) {
-          await new Promise(r => setTimeout(r, 1500));
-          throw new Error("Demo Failure: Deadline expired on-chain");
+    mutationFn: async ({ id, proofHash, proofDescription, submittedDocuments }: { id: number, proofHash: string, proofDescription?: string, submittedDocuments?: any }) => {
+      const res = await fetch(api.funds.submitProof.path.replace(':id', id.toString()), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ipfsHash: proofHash, // Using proofHash as ipfsHash for now
+          proofDescription: proofDescription || "Proof submitted",
+          submittedDocuments
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to submit proof");
       }
-      // 1. Call Albedo Wallet
-      const tx = await stellarService.submitProof(id, proofHash);
-      
-      // 2. Optimistic Update (for demo responsiveness)
-      if (tx) {
-          sorobanData.mockUpdateFundStatus(id, "Pending Verification", proofHash);
-      }
-      return tx;
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['funds'] });
       queryClient.invalidateQueries({ queryKey: ['fund'] });
       toast({
         title: "Proof Submitted",
-        description: "Transaction confirmed on-chain.",
+        description: "Your proof has been submitted for verification.",
       });
     },
     onError: (err: any) => {
       toast({
         title: "Submission Failed",
-        description: mapContractError(err),
+        description: err.message,
         variant: "destructive",
       });
     },
   });
 }
 
-// Verify Fund (Verifier)
+// Verify Fund (Verifier) - Now supports direct status update
 export function useVerifyFund() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isDemoMode } = useWallet();
 
   return useMutation({
-    mutationFn: async ({ id, decision }: { id: number, decision: 'approve' | 'reject' }) => {
-      if (isDemoMode) {
-          await new Promise(r => setTimeout(r, 1500));
-          throw new Error("Demo Failure: Invalid signature (Wrong wallet)");
+    mutationFn: async ({ id, decision, status }: { id: number, decision?: 'approve' | 'reject', status?: 'Approved' | 'Released' | 'Rejected' }) => {
+      // Determine status based on decision or explicit status
+      let finalStatus = status;
+      if (!finalStatus && decision) {
+        finalStatus = decision === 'approve' ? 'Approved' : 'Rejected';
       }
-      if (decision === 'approve') {
-          const tx = await stellarService.approveProof(id);
-          if (tx) sorobanData.mockUpdateFundStatus(id, "Approved");
-          return tx;
-      } else {
-          // Reject flow (Refund?)
-          // stellarService.rejectProof(id)
-          throw new Error("Rejection not fully implemented on-chain yet");
+
+      if (!finalStatus) throw new Error("Status or decision required");
+
+      const res = await fetch(api.funds.verify.path.replace(':id', id.toString()), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: finalStatus }),
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to verify fund");
       }
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['funds'] });
       queryClient.invalidateQueries({ queryKey: ['fund'] });
+      
+      const status = variables.status || (variables.decision === 'approve' ? 'Approved' : 'Rejected');
+      
       toast({
-        title: "Decision Recorded",
-        description: "Fund status updated on-chain.",
+        title: status === 'Released' ? "Fund Released" : "Decision Recorded",
+        description: status === 'Released' 
+          ? "Funds have been transferred to the beneficiary." 
+          : "Fund status updated successfully.",
       });
     },
     onError: (err: any) => {
       toast({
         title: "Verification Failed",
-        description: mapContractError(err),
+        description: err.message,
         variant: "destructive",
       });
     },
@@ -159,30 +170,34 @@ export function useVerifyFund() {
 export function useClaimFunds() {
     const queryClient = useQueryClient();
     const { toast } = useToast();
-    const { isDemoMode } = useWallet();
   
     return useMutation({
       mutationFn: async (id: number) => {
-        if (isDemoMode) {
-            await new Promise(r => setTimeout(r, 1500));
-            throw new Error("Demo Failure: Claim before approval (Mock)");
+        // We reuse the verify endpoint to set status to Released
+        const res = await fetch(api.funds.verify.path.replace(':id', id.toString()), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Released' }),
+        });
+        
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message || "Failed to claim funds");
         }
-        const tx = await stellarService.releaseFunds(id);
-        if (tx) sorobanData.mockUpdateFundStatus(id, "Released");
-        return tx;
+        return res.json();
       },
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['funds'] });
         queryClient.invalidateQueries({ queryKey: ['fund'] });
         toast({
           title: "Funds Claimed!",
-          description: "XLM transferred to your wallet.",
+          description: "Funds have been released to your account.",
         });
       },
       onError: (err: any) => {
         toast({
           title: "Claim Failed",
-          description: mapContractError(err),
+          description: err.message,
           variant: "destructive",
         });
       },
