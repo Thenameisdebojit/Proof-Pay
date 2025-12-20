@@ -101,8 +101,13 @@ export class MongoStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     await this.ensureConnection();
     if (this.isMongoConnected) {
-      const user = await UserModel.findOne({ email });
-      return user ? this.mapUser(user) : undefined;
+      try {
+        const user = await UserModel.findOne({ email });
+        return user ? this.mapUser(user) : undefined;
+      } catch (err) {
+        console.error("getUserByEmail Mongo error:", err);
+        // Fallback to in-memory check if Mongo fails
+      }
     }
     return Array.from(this.users.values()).find(u => u.email === email);
   }
