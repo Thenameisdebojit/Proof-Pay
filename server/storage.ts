@@ -79,6 +79,7 @@ export class MongoStorage implements IStorage {
 
   async getUser(id: string): Promise<User | undefined> {
     if (!id) return undefined;
+    await this.ensureConnection();
     if (this.isMongoConnected) {
       try {
           const user = await UserModel.findById(id);
@@ -91,6 +92,7 @@ export class MongoStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
+    await this.ensureConnection();
     if (this.isMongoConnected) {
       const user = await UserModel.findOne({ email });
       return user ? this.mapUser(user) : undefined;

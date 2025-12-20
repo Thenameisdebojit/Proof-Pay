@@ -60,10 +60,11 @@ export async function registerRoutes(
       
       res.status(201).json(user);
     } catch (err) {
+      console.error("Register error:", err);
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      res.status(500).json({ message: "Internal Server Error" });
+      res.status(500).json({ message: "Internal Server Error", details: (err as Error).message });
     }
   });
 
