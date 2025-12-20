@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useFunds, useCreateFund } from "@/hooks/use-funds";
 import { FundCard } from "@/components/FundCard";
@@ -26,25 +26,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFundSchema } from "@shared/schema";
 import { Plus, Wallet, Users, Lock, Loader2 } from "lucide-react";
 import { z } from "zod";
-import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@/context/WalletContext";
-import { useLocation } from "wouter";
 
 // Funder Dashboard
 
-export default function Funder() {
-  const { user, isLoading: isAuthLoading } = useAuth();
-  const { address } = useWallet();
-  const [, setLocation] = useLocation();
-
-  // Redirect if not authorized
-  useEffect(() => {
-      if (!isAuthLoading && (!user || user.role !== 'Funder')) {
-          setLocation('/login');
-      }
-  }, [user, isAuthLoading, setLocation]);
-
-  const { data: funds, isLoading } = useFunds({ role: "Funder", address: address || "" });
+export default function Home() {
+  const { data: funds, isLoading } = useFunds({ role: "Funder" });
   const createFund = useCreateFund();
   const [open, setOpen] = useState(false);
 
@@ -56,22 +42,15 @@ export default function Funder() {
   const form = useForm<z.infer<typeof insertFundSchema>>({
     resolver: zodResolver(insertFundSchema),
     defaultValues: {
-      funderAddress: address || "",
-      beneficiaryAddress: "", 
-      verifierAddress: "", 
+      funderAddress: "GDA...MOCK", // Ideally from context
+      beneficiaryAddress: "G_BENEFICIARY_MOCK", // Default for demo
+      verifierAddress: "G_VERIFIER_MOCK", // Default for demo
       amount: "",
       conditions: "",
       requiredDocuments: "Proof Document", // Default value
       deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // ~30 days default
     }
   });
-
-  // Update default address when wallet connects
-  useEffect(() => {
-      if (address) {
-          form.setValue("funderAddress", address);
-      }
-  }, [address, form]);
 
   const onSubmit = (data: z.infer<typeof insertFundSchema>) => {
     // Convert comma-separated string to JSON string array
@@ -85,10 +64,6 @@ export default function Funder() {
       }
     });
   };
-
-  if (isAuthLoading || !user) {
-    return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div>;
-  }
 
   return (
     <Layout>

@@ -14,7 +14,7 @@ export function useSoroban() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Call the existing service to simulate the transaction
-      await stellarService.approveProof(fundId);
+      await stellarService.signTransaction('Approved', { fundId });
       
       toast({
         title: "Smart Contract Executed",

@@ -18,7 +18,7 @@ export const stellarService = {
         return { txHash: "mock_tx_hash_" + Date.now(), status: "success" };
       }
 
-      const result = await (albedo as any).invoke({
+      const result = await albedo.invoke({
         network: NETWORK,
         contractId: CONTRACT_ID,
         method: method,

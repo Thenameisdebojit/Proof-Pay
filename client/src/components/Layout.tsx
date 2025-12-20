@@ -4,17 +4,26 @@ import {
   Wallet, 
   ShieldCheck, 
   LayoutDashboard, 
+  History, 
   Menu,
   X,
-  LogOut,
-  User as UserIcon,
+  Sun,
+  Moon,
   Activity
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
-import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BeneficiaryNotification } from "@/components/BeneficiaryNotification";
+import { BlockchainSyncStatus } from "@/components/BlockchainSyncStatus";
 import { useTheme } from "@/components/theme-provider";
 
 interface LayoutProps {
@@ -23,10 +32,9 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const { isConnected, address, balance, connectWallet, disconnectWallet, isConnecting, isDemoMode } = useWallet();
-  const { user, logout } = useAuth();
+  const { isConnected, address, balance, connectWallet, disconnectWallet, isConnecting, isDemoMode, toggleDemoMode } = useWallet();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { theme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const handleConnect = async () => {
     try {
@@ -36,28 +44,13 @@ export function Layout({ children }: LayoutProps) {
     }
   };
 
-  // Define nav items based on role
-  const getNavItems = () => {
-      if (!user) return [];
-      
-      const items = [];
-      if (user.role === 'Funder') {
-          items.push({ label: "Funder Dashboard", href: "/dashboard/funder", icon: LayoutDashboard });
-      }
-      if (user.role === 'Beneficiary') {
-          items.push({ label: "Beneficiary Portal", href: "/dashboard/beneficiary", icon: Wallet });
-      }
-      if (user.role === 'Verifier') {
-           items.push({ label: "Verifier Portal", href: "/dashboard/verifier", icon: ShieldCheck });
-      }
-      
-      items.push({ label: "Profile", href: "/profile", icon: UserIcon });
-      items.push({ label: "System Status", href: "/status", icon: Activity });
-      
-      return items;
-  };
-
-  const navItems = getNavItems();
+  const navItems = [
+    { label: "Funder Dashboard", href: "/", icon: LayoutDashboard },
+    { label: "Beneficiary Portal", href: "/beneficiary", icon: Wallet },
+    { label: "Verifier Portal", href: "/verifier", icon: ShieldCheck },
+    { label: "History", href: "/history", icon: History },
+    { label: "System Status", href: "/status", icon: Activity },
+  ];
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row font-body text-foreground transition-colors duration-300">
@@ -75,12 +68,11 @@ export function Layout({ children }: LayoutProps) {
         </Button>
       </div>
 
-      {/* Sidebar */}
+      {/* Sidebar / Mobile Menu */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out md:translate-x-0 md:static flex flex-col",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        {/* Header Logo */}
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-primary-foreground font-bold shadow-lg shadow-primary/25">
             <ShieldCheck className="w-6 h-6" />
@@ -94,18 +86,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
-        {/* User Info */}
-        {user && (
-            <div className="px-6 mb-4">
-                <div className="p-3 bg-accent/50 rounded-lg">
-                    <p className="font-bold text-sm truncate">{user.name}</p>
-                    <Badge variant="outline" className="text-xs mt-1">{user.role}</Badge>
-                </div>
-            </div>
-        )}
-
-        {/* Nav Links */}
-        <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href}>
               <div 
@@ -117,51 +98,94 @@ export function Layout({ children }: LayoutProps) {
                 )}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <item.icon className="w-5 h-5" />
+                <item.icon className="w-4 h-4" />
                 {item.label}
               </div>
             </Link>
           ))}
         </nav>
-
-        {/* Footer Actions (Wallet + Logout) */}
-        <div className="p-4 border-t border-border space-y-4">
-            {/* Wallet Button */}
-            <div className="flex flex-col gap-2">
-                 {isConnected ? (
-                     <div className="bg-card border rounded-lg p-3">
-                         <div className="flex justify-between items-center mb-1">
-                             <span className="text-xs text-muted-foreground">Wallet Connected</span>
-                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                         </div>
-                         <p className="text-xs font-mono text-muted-foreground truncate mb-1" title={address || ""}>
-                             {address?.substring(0, 6)}...{address?.substring(address.length - 4)}
-                         </p>
-                         <p className="font-bold text-sm">{balance}</p>
-                         <Button variant="ghost" size="sm" className="w-full mt-2 h-7 text-xs" onClick={disconnectWallet}>Disconnect</Button>
-                     </div>
-                 ) : (
-                     <Button onClick={handleConnect} disabled={isConnecting} className="w-full">
-                         {isConnecting ? "Connecting..." : "Connect Wallet"}
-                     </Button>
-                 )}
-            </div>
-
-            {/* Logout */}
-            <Button variant="outline" className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50" onClick={logout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Log Out
+        
+        {/* Theme Toggle (Sidebar bottom) */}
+        <div className="p-4 border-t border-border">
+            <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full justify-start gap-2 text-muted-foreground"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {theme === "dark" ? "Light Mode" : "Dark Mode"}
             </Button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto h-screen">
-          <div className="container mx-auto p-4 md:p-8 max-w-7xl">
-            {children}
+      <main className={cn(
+        "flex-1 transition-all duration-200 ease-in-out",
+        mobileMenuOpen ? "ml-64" : "ml-0"
+      )}>
+        {/* Header Strip */}
+        <header className="h-16 border-b bg-background/80 backdrop-blur-sm sticky top-0 z-40 px-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              <Menu />
+            </Button>
+            <h2 className="font-display font-semibold text-lg capitalize">
+              {location === "/" ? "Funder Dashboard" : location.replace("/", "").replace("-", " ")}
+            </h2>
           </div>
-      </main>
+          
+          <div className="flex items-center gap-4">
+             {/* Task 5: Read-Only Indexing Visible */}
+             <div className="hidden md:block">
+                 <BlockchainSyncStatus />
+             </div>
 
+             <div className="hidden md:block text-xs font-mono text-muted-foreground bg-muted px-3 py-1 rounded-full">
+               Network: Testnet
+             </div>
+
+             {/* Wallet Connection */}
+             {isConnected && address ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-2 border-border/50 bg-secondary/50 hover:bg-secondary/80 transition-all">
+                      <div className="flex flex-col items-end text-xs mr-1">
+                        <span className="font-mono font-medium">{balance}</span>
+                        <span className="text-muted-foreground">{address.substring(0, 4)}...{address.substring(address.length - 4)}</span>
+                      </div>
+                      <Avatar className="h-8 w-8 border-2 border-primary/20">
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                          {address.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={toggleDemoMode} className="cursor-pointer">
+                        <div className="flex items-center justify-between w-full">
+                            <span>Simulate Failures</span>
+                            {isDemoMode && <span className="text-xs bg-amber-100 text-amber-800 px-1 rounded">ON</span>}
+                        </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={disconnectWallet} className="text-destructive focus:text-destructive cursor-pointer">
+                       Disconnect Wallet
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button onClick={handleConnect} disabled={isConnecting} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
+                  {isConnecting ? "Connecting..." : "Connect Wallet"}
+                </Button>
+              )}
+          </div>
+        </header>
+
+        <div className="p-6 max-w-7xl mx-auto space-y-8 animate-enter">
+          <BeneficiaryNotification />
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

@@ -1,15 +1,14 @@
-import { Fund, InsertFund, SubmitProofRequest, VerifyFundRequest, User, InsertUser } from "@shared/schema";
-import { UserModel } from "./models/User";
-import { connectDB } from "./db";
+import { db } from "./db";
+import {
+  funds,
+  type Fund,
+  type InsertFund,
+  type SubmitProofRequest,
+  type VerifyFundRequest
+} from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
-  // Users
-  createUser(user: InsertUser & { passwordHash: string }): Promise<User>;
-  getUser(id: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  updateUserWallet(id: string, walletAddress: string): Promise<User | undefined>;
-  
-  // Funds (In-Memory for metadata, real state should be on-chain)
   getFunds(role?: string, address?: string): Promise<Fund[]>;
   getFund(id: number): Promise<Fund | undefined>;
   createFund(fund: InsertFund): Promise<Fund>;
@@ -17,102 +16,75 @@ export interface IStorage {
   verifyFund(id: number, verification: VerifyFundRequest): Promise<Fund>;
 }
 
-export class MongoStorage implements IStorage {
+export class DatabaseStorage implements IStorage {
+  async getFunds(role?: string, address?: string): Promise<Fund[]> {
+    if (!db) throw new Error("Database not initialized");
+    let query = db.select().from(funds).orderBy(desc(funds.createdAt));
+    
+    if (role && address) {
+      if (role === 'Funder') {
+        query = db.select().from(funds).where(eq(funds.funderAddress, address)).orderBy(desc(funds.createdAt));
+      } else if (role === 'Beneficiary') {
+        query = db.select().from(funds).where(eq(funds.beneficiaryAddress, address)).orderBy(desc(funds.createdAt));
+      } else if (role === 'Verifier') {
+        // Verifier sees funds assigned to them or pending ones?
+        // Requirement: "List: 'Pending Verifications' table." implies filtering by status and verifier address
+        // But for simplicity, let's just show all for verifier or filter by verifier address
+        query = db.select().from(funds).where(eq(funds.verifierAddress, address)).orderBy(desc(funds.createdAt));
+      }
+    }
+    
+    return await query;
+  }
+
+  async getFund(id: number): Promise<Fund | undefined> {
+    if (!db) throw new Error("Database not initialized");
+    const [fund] = await db.select().from(funds).where(eq(funds.id, id));
+    return fund;
+  }
+
+  async createFund(insertFund: InsertFund): Promise<Fund> {
+    if (!db) throw new Error("Database not initialized");
+    const [fund] = await db.insert(funds).values(insertFund).returning();
+    return fund;
+  }
+
+  async submitProof(id: number, proof: SubmitProofRequest): Promise<Fund> {
+    if (!db) throw new Error("Database not initialized");
+    const [updated] = await db
+      .update(funds)
+      .set({
+        ipfsHash: proof.ipfsHash,
+        proofDescription: proof.proofDescription,
+        status: "Pending Verification"
+      })
+      .where(eq(funds.id, id))
+      .returning();
+    return updated;
+  }
+
+  async verifyFund(id: number, verification: VerifyFundRequest): Promise<Fund> {
+    if (!db) throw new Error("Database not initialized");
+    const [updated] = await db
+      .update(funds)
+      .set({
+        status: verification.status
+      })
+      .where(eq(funds.id, id))
+      .returning();
+    return updated;
+  }
+}
+
+export class MemStorage implements IStorage {
   private funds: Map<number, Fund>;
-  private users: Map<string, User>; // Fallback in-memory storage
-  private currentFundId: number;
-  private currentUserId: number; // For in-memory IDs
-  private isMongoConnected: boolean;
+  private currentId: number;
 
   constructor() {
     this.funds = new Map();
-    this.users = new Map();
-    this.currentFundId = 1;
-    this.currentUserId = 1;
-    this.isMongoConnected = false;
-    this.initDB();
+    this.currentId = 1;
   }
 
-  private async initDB() {
-    try {
-       const connected = await connectDB();
-       this.isMongoConnected = connected;
-       if (!connected) {
-         console.warn("Falling back to in-memory storage due to connection failure");
-       }
-    } catch (e) {
-      console.warn("Falling back to in-memory storage due to error", e);
-      this.isMongoConnected = false;
-    }
-  }
-
-  private mapUser(doc: any): User {
-    const obj = doc.toObject();
-    return {
-      ...obj,
-      _id: obj._id.toString(),
-      createdAt: obj.createdAt
-    };
-  }
-
-  // User Implementation
-  async createUser(user: InsertUser & { passwordHash: string }): Promise<User> {
-    if (this.isMongoConnected) {
-      const newUser = new UserModel(user);
-      await newUser.save();
-      return this.mapUser(newUser);
-    }
-    
-    // Fallback
-    const id = (this.currentUserId++).toString();
-    const newUser: User = {
-      ...user,
-      _id: id,
-      role: user.role as "Beneficiary" | "Funder" | "Verifier", // Type assertion for fallback
-      about: user.about || undefined,
-      walletAddress: undefined,
-      createdAt: new Date()
-    };
-    this.users.set(id, newUser);
-    return newUser;
-  }
-
-  async getUser(id: string): Promise<User | undefined> {
-    if (!id) return undefined;
-    if (this.isMongoConnected) {
-      try {
-          const user = await UserModel.findById(id);
-          return user ? this.mapUser(user) : undefined;
-      } catch (e) {
-          return undefined;
-      }
-    }
-    return this.users.get(id);
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    if (this.isMongoConnected) {
-      const user = await UserModel.findOne({ email });
-      return user ? this.mapUser(user) : undefined;
-    }
-    return Array.from(this.users.values()).find(u => u.email === email);
-  }
-  
-  async updateUserWallet(id: string, walletAddress: string): Promise<User | undefined> {
-     if (this.isMongoConnected) {
-       const user = await UserModel.findByIdAndUpdate(id, { walletAddress }, { new: true });
-       return user ? this.mapUser(user) : undefined;
-     }
-     const user = this.users.get(id);
-     if (user) {
-       const updated = { ...user, walletAddress };
-       this.users.set(id, updated);
-       return updated;
-     }
-     return undefined;
-  }
-
-  // Fund Implementation
   async getFunds(role?: string, address?: string): Promise<Fund[]> {
     let allFunds = Array.from(this.funds.values()).sort((a, b) => 
       (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
@@ -135,16 +107,16 @@ export class MongoStorage implements IStorage {
   }
 
   async createFund(insertFund: InsertFund): Promise<Fund> {
-    const id = this.currentFundId++;
-    const fund: Fund = { 
-        ...insertFund, 
-        id, 
-        createdAt: new Date(), 
-        status: "Locked", 
-        ipfsHash: null, 
-        proofDescription: null, 
-        requiredDocuments: null, 
-        submittedDocuments: null 
+    const id = this.currentId++;
+    const fund: Fund = {
+      ...insertFund,
+      id,
+      createdAt: new Date(),
+      status: "Locked",
+      ipfsHash: null,
+      proofDescription: null,
+      requiredDocuments: insertFund.requiredDocuments || null,
+      submittedDocuments: null,
     };
     this.funds.set(id, fund);
     return fund;
@@ -154,10 +126,11 @@ export class MongoStorage implements IStorage {
     const fund = this.funds.get(id);
     if (!fund) throw new Error("Fund not found");
     const updated: Fund = { 
-        ...fund, 
-        ...proof, 
-        submittedDocuments: proof.submittedDocuments ? JSON.stringify(proof.submittedDocuments) : null,
-        status: "Pending Verification" 
+      ...fund, 
+      ipfsHash: proof.ipfsHash || null,
+      proofDescription: proof.proofDescription,
+      submittedDocuments: proof.submittedDocuments ? JSON.stringify(proof.submittedDocuments) : null,
+      status: "Pending Verification" 
     };
     this.funds.set(id, updated);
     return updated;
@@ -166,10 +139,10 @@ export class MongoStorage implements IStorage {
   async verifyFund(id: number, verification: VerifyFundRequest): Promise<Fund> {
     const fund = this.funds.get(id);
     if (!fund) throw new Error("Fund not found");
-    const updated: Fund = { ...fund, status: verification.status };
+    const updated = { ...fund, status: verification.status };
     this.funds.set(id, updated);
     return updated;
   }
 }
 
-export const storage = new MongoStorage();
+export const storage = db ? new DatabaseStorage() : new MemStorage();
