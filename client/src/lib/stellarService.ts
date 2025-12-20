@@ -56,5 +56,22 @@ export const stellarService = {
     return await stellarService.invokeContract('release_funds', [
       { type: 'u64', value: fundId }
     ]);
+  },
+
+  // Direct Payment (For demo/hackathon simplicity where Verifier pays directly)
+  transferFunds: async (destination: string, amount: string) => {
+    try {
+      console.log(`Initiating transfer of ${amount} XLM to ${destination}`);
+      const result = await (albedo as any).pay({
+        amount: amount,
+        destination: destination,
+        network: NETWORK,
+        asset_code: 'XLM' // Native Lumens
+      });
+      return result;
+    } catch (error) {
+      console.error("Payment failed:", error);
+      throw error;
+    }
   }
 };

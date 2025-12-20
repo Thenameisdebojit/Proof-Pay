@@ -20,6 +20,7 @@ import { AIVerificationPanel } from "@/components/AIVerificationPanel";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
+import { stellarService } from "@/lib/stellarService";
 
 export default function Verifier() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -49,6 +50,11 @@ export default function Verifier() {
     
     setApprovalStep('signing');
     try {
+        // Step 1: Initiate actual transfer from Wallet
+        // This will popup the Albedo/Freighter wallet to sign the payment
+        await stellarService.transferFunds(selectedFund.beneficiaryAddress, selectedFund.amount);
+        
+        // Step 2: If payment success, update DB status
         await verifyFund.mutateAsync({
             id: selectedFund.id,
             decision: 'approve',
@@ -68,6 +74,7 @@ export default function Verifier() {
     } catch (e) {
         setApprovalStep('idle');
         console.error(e);
+        alert("Transfer failed or was cancelled. Database not updated.");
     }
   };
 
