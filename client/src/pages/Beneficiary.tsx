@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
+import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "wouter";
 import { useFunds, useSubmitProof, useClaimFunds } from "@/hooks/use-funds";
 import { FundCard } from "@/components/FundCard";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Beneficiary() {
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const [, setLocation] = useLocation();
   const { address, balance } = useWallet();
+  
+  // Redirect if not authorized
+  useEffect(() => {
+    if (!isAuthLoading && (!user || user.role !== 'Beneficiary')) {
+      setLocation('/login');
+    }
+  }, [user, isAuthLoading, setLocation]);
+
   // Polls Soroban for funds
   const { data: funds, isLoading } = useFunds({ role: "Beneficiary", address: address || "" });
   const submitProof = useSubmitProof();
