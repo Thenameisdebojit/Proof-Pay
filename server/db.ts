@@ -12,10 +12,7 @@ export const connectDB = async (): Promise<boolean> => {
   }
 
   try {
-    await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000, // Fail fast after 5s
-      socketTimeoutMS: 45000,
-    });
+    await mongoose.connect(uri);
     console.log("MongoDB Connected");
     return true;
   } catch (err) {

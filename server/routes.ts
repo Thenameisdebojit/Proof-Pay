@@ -19,7 +19,7 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'Sqy7LZe53AtXmdoek1nFTIu/gxhy0BNJ0NXfvMvRxktKpkaJmnalF3SbrkWvp1FQ2foPHIU7yJZVVWLzzMLqLQ==';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 
 const upload = multer({ 
   storage: multer.diskStorage({
@@ -59,12 +59,18 @@ export async function registerRoutes(
       });
       
       res.status(201).json(user);
-    } catch (err) {
-      console.error("Register error:", err);
+    } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      res.status(500).json({ message: "Internal Server Error", details: (err as Error).message });
+      if (err.code === 11000) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      if (err.name === 'ValidationError') {
+        return res.status(400).json({ message: err.message });
+      }
+      console.error("Register error:", err);
+      res.status(500).json({ message: "Internal Server Error" });
     }
   });
 

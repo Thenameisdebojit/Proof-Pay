@@ -55,14 +55,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        try {
-          const err = JSON.parse(text);
-          throw new Error(err.message || 'Login failed');
-        } catch (e) {
-          console.error("Login failed with non-JSON response:", text);
-          throw new Error(`Server Error: ${res.status}`);
-        }
+        const err = await res.json();
+        throw new Error(err.message || 'Login failed');
       }
 
       const userData = await res.json();

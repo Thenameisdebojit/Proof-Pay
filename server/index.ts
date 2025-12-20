@@ -71,7 +71,8 @@ const setupServer = async () => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    // Don't throw err here, response is already sent
+    console.error(err);
   });
 
   // importantly only setup vite in development and after
