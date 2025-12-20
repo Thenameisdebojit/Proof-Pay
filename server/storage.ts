@@ -46,12 +46,19 @@ export class MongoStorage implements IStorage {
     }
   }
 
+  private async ensureConnection() {
+    if (!this.isMongoConnected) {
+      this.isMongoConnected = await connectDB();
+    }
+  }
+
   private mapUser(doc: any): User {
     const obj = doc.toObject();
     return {
       ...obj,
       _id: obj._id.toString(),
-      createdAt: obj.createdAt
+    awa t this.ensureConnection();
+    i createdAt: obj.createdAt
     };
   }
 
@@ -94,8 +101,7 @@ export class MongoStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     await this.ensureConnection();
     if (this.isMongoConnected) {
-      const user = await UserModel.findOne({ email });
-      return user ? this.mapUser(user) : undefined;
+      const user = await UserModel.findOne({ email });er) : undefined;
     }
     return Array.from(this.users.values()).find(u => u.email === email);
   }
