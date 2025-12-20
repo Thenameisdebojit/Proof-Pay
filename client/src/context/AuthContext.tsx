@@ -55,8 +55,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Login failed');
+        let errorMessage = 'Login failed';
+        try {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+             const err = await res.json();
+             errorMessage = err.message || errorMessage;
+          } else {
+             const text = await res.text();
+             console.error("Non-JSON response:", text);
+             // Try to extract a meaningful message if it's HTML or plain text
+             errorMessage = `Server Error (${res.status}): ${text.slice(0, 100)}`;
+          }
+        } catch (e) {
+          console.error("Error parsing error response:", e);
+        }
+        throw new Error(errorMessage);
       }
 
       const userData = await res.json();
@@ -103,8 +117,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Registration failed');
+        let errorMessage = 'Registration failed';
+        try {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+             const err = await res.json();
+             errorMessage = err.message || errorMessage;
+          } else {
+             const text = await res.text();
+             console.error("Non-JSON response:", text);
+             errorMessage = `Server Error (${res.status}): ${text.slice(0, 100)}`;
+          }
+        } catch (e) {
+          console.error("Error parsing error response:", e);
+        }
+        throw new Error(errorMessage);
       }
 
       const userData = await res.json();

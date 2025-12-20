@@ -64,7 +64,22 @@ app.use((req, res, next) => {
 });
 
 const setupServer = async () => {
+  // Global Error Handlers
+  process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    // Keep the process alive or exit gracefully
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+
   await registerRoutes(httpServer, app);
+
+  // API 404 Handler - Must be before Vite/Static middleware
+  app.use('/api/*', (req, res) => {
+    res.status(404).json({ message: "API endpoint not found" });
+  });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

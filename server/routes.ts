@@ -42,7 +42,14 @@ export async function registerRoutes(
   app.post('/api/register', async (req, res) => {
     try {
       const data = insertUserSchema.parse(req.body);
-      const existing = await storage.getUserByEmail(data.email);
+      let existing;
+      try {
+        existing = await storage.getUserByEmail(data.email);
+      } catch (dbError) {
+        console.error("Database error during register check:", dbError);
+        return res.status(500).json({ message: "Database service unavailable" });
+      }
+      
       if (existing) {
         return res.status(400).json({ message: "Email already exists" });
       }
@@ -109,8 +116,16 @@ export async function registerRoutes(
 
   app.post('/api/login', async (req, res) => {
     try {
+      console.log(`Login attempt for: ${req.body.email}`);
       const data = loginSchema.parse(req.body);
-      const user = await storage.getUserByEmail(data.email);
+      let user;
+      try {
+        user = await storage.getUserByEmail(data.email);
+      } catch (dbError) {
+        console.error("Database error during login:", dbError);
+        return res.status(500).json({ message: "Database service unavailable" });
+      }
+
       if (!user || !user.passwordHash) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
