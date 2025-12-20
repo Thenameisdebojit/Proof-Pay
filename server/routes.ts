@@ -19,7 +19,7 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'Sqy7LZe53AtXmdoek1nFTIu/gxhy0BNJ0NXfvMvRxktKpkaJmnalF3SbrkWvp1FQ2foPHIU7yJZVVWLzzMLqLQ==';
 
 const upload = multer({ 
   storage: multer.diskStorage({
