@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { useFunds, useVerifyFund } from "@/hooks/use-funds";
 import { FundCard } from "@/components/FundCard";
@@ -18,12 +18,20 @@ import { Loader2, CheckCircle, XCircle, Lock, Copy, AlertTriangle, Check, Shield
 import { useWallet } from "@/context/WalletContext";
 import { AIVerificationPanel } from "@/components/AIVerificationPanel";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "wouter";
 
 export default function Verifier() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { address } = useWallet();
+  const [, setLocation] = useLocation();
+
+  // Redirect if not authorized
+  useEffect(() => {
+      if (!isAuthLoading && (!user || user.role !== 'Verifier')) {
+          setLocation('/login');
+      }
+  }, [user, isAuthLoading, setLocation]);
 
   // Polls Soroban for funds
   // Filter for funds where verifier matches connected wallet (or MOCK for demo if needed, but requirements say connectedWallet)
@@ -33,16 +41,6 @@ export default function Verifier() {
   const [selectedFund, setSelectedFund] = useState<any>(null);
   const [approvalStep, setApprovalStep] = useState<'idle' | 'signing' | 'submitted' | 'confirmed'>('idle');
   
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === "admin123") {
-      setIsLoggedIn(true);
-      setLoginError("");
-    } else {
-      setLoginError("Invalid password");
-    }
-  };
-
   const pendingFunds = funds?.filter((f: any) => f.status === "Pending Verification") || [];
   const processedFunds = funds?.filter((f: any) => f.status !== "Pending Verification" && f.status !== "Locked") || [];
 
@@ -76,42 +74,8 @@ export default function Verifier() {
       navigator.clipboard.writeText(text);
   };
 
-  if (!isLoggedIn) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Card className="w-full max-w-md shadow-lg border-t-4 border-t-indigo-600">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-100">
-                <Lock className="w-5 h-5 text-indigo-600" />
-                Verifier Portal
-              </CardTitle>
-              <CardDescription>Secure access for Institution Verifiers.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Access Key</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter access key..."
-                    className="focus:ring-indigo-500"
-                  />
-                  {loginError && <p className="text-sm text-destructive font-medium">{loginError}</p>}
-                </div>
-                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700">Access Dashboard</Button>
-                <div className="text-xs text-center text-muted-foreground mt-4">
-                    <p>Demo Key: <code className="bg-muted px-1 py-0.5 rounded">admin123</code></p>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      </Layout>
-    );
+  if (isAuthLoading || !user) {
+      return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div>;
   }
 
   return (

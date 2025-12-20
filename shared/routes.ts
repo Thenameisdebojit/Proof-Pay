@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertFundSchema, funds, submitProofSchema, verifyFundSchema } from './schema';
+import { insertFundSchema, Fund, submitProofSchema, verifyFundSchema } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -24,14 +24,14 @@ export const api = {
         address: z.string().optional(),
       }).optional(),
       responses: {
-        200: z.array(z.custom<typeof funds.$inferSelect>()),
+        200: z.array(z.custom<Fund>()),
       },
     },
     get: {
       method: 'GET' as const,
       path: '/api/funds/:id',
       responses: {
-        200: z.custom<typeof funds.$inferSelect>(),
+        200: z.custom<Fund>(),
         404: errorSchemas.notFound,
       },
     },
@@ -40,7 +40,7 @@ export const api = {
       path: '/api/funds',
       input: insertFundSchema,
       responses: {
-        201: z.custom<typeof funds.$inferSelect>(),
+        201: z.custom<Fund>(),
         400: errorSchemas.validation,
       },
     },
@@ -49,7 +49,7 @@ export const api = {
       path: '/api/funds/:id/proof',
       input: submitProofSchema,
       responses: {
-        200: z.custom<typeof funds.$inferSelect>(),
+        200: z.custom<Fund>(),
         400: errorSchemas.validation,
         404: errorSchemas.notFound,
       },
@@ -59,7 +59,7 @@ export const api = {
       path: '/api/funds/:id/verify',
       input: verifyFundSchema,
       responses: {
-        200: z.custom<typeof funds.$inferSelect>(),
+        200: z.custom<Fund>(),
         400: errorSchemas.validation,
         404: errorSchemas.notFound,
       },

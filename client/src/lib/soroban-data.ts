@@ -48,7 +48,7 @@ export class SorobanDataService {
   private getFundKey(id: number): string {
     const scVal = xdr.ScVal.scvVec([
       xdr.ScVal.scvSymbol("Fund"),
-      xdr.ScVal.scvU64(xdr.LargeInt.fromInt32(id))
+      xdr.ScVal.scvU64(new xdr.Uint64(id))
     ]);
     return scVal.toXDR('base64');
   }

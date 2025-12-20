@@ -6,12 +6,17 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { insertUserSchema, loginSchema } from '@shared/schema';
 
 // Configure storage for multer
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 
 const upload = multer({ 
   storage: multer.diskStorage({
@@ -30,6 +35,122 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Auth Routes
+  app.post('/api/register', async (req, res) => {
+    try {
+      const data = insertUserSchema.parse(req.body);
+      const existing = await storage.getUserByEmail(data.email);
+      if (existing) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+
+      const passwordHash = await bcrypt.hash(data.password, 10);
+      const user = await storage.createUser({ ...data, passwordHash });
+      
+      const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+      res.cookie('token', token, { 
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+      
+      res.status(201).json(user);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  app.post('/api/demo-login', async (req, res) => {
+    try {
+      const demoEmail = "demo@proofpay.com";
+      let user = await storage.getUserByEmail(demoEmail);
+
+      if (!user) {
+        // Create demo user if not exists
+        const passwordHash = await bcrypt.hash("demo123", 10);
+        user = await storage.createUser({
+          name: "Demo User",
+          email: demoEmail,
+          password: "demo123",
+          role: "Beneficiary",
+          about: "I am a demo beneficiary user.",
+          passwordHash
+        });
+      }
+
+      const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+      res.cookie('token', token, { 
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+
+      res.json(user);
+    } catch (err) {
+      console.error("Demo login error:", err);
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  app.post('/api/login', async (req, res) => {
+    try {
+      const data = loginSchema.parse(req.body);
+      const user = await storage.getUserByEmail(data.email);
+      if (!user || !user.passwordHash) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const valid = await bcrypt.compare(data.password, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+      res.cookie('token', token, { 
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+
+      res.json(user);
+    } catch (err) {
+      console.error("Login error:", err);
+      if (err instanceof z.ZodError) {
+         return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  app.get('/api/me', async (req, res) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: "Not authenticated" });
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const user = await storage.getUser(decoded.id);
+      if (!user) {
+         res.clearCookie('token');
+         return res.status(401).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (e) {
+      res.clearCookie('token');
+      res.status(401).json({ message: "Invalid token" });
+    }
+  });
+
+  app.post('/api/logout', (req, res) => {
+    res.clearCookie('token');
+    res.json({ message: "Logged out" });
+  });
+
   // File upload route
   app.post("/api/upload", upload.single("file"), (req, res) => {
     if (!req.file) {

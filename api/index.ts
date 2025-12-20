@@ -1,9 +1,11 @@
-import { app, setupServer } from '../server/index';
+import { app, setupServer } from "../server/index";
 
-// Initialize the app
-const setupPromise = setupServer();
+let isSetup = false;
 
 export default async function handler(req: any, res: any) {
-  await setupPromise;
+  if (!isSetup) {
+    await setupServer();
+    isSetup = true;
+  }
   app(req, res);
 }

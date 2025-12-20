@@ -1,256 +1,171 @@
-import { useState } from "react";
-import { Layout } from "@/components/Layout";
-import { useFunds, useCreateFund } from "@/hooks/use-funds";
-import { FundCard } from "@/components/FundCard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogTrigger 
-} from "@/components/ui/dialog";
-import { 
-  Form, 
-  FormControl, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
-} from "@/components/ui/form";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { insertFundSchema } from "@shared/schema";
-import { Plus, Wallet, Users, Lock, Loader2 } from "lucide-react";
-import { z } from "zod";
-
-// Funder Dashboard
+import { Link } from "wouter";
+import { ArrowRight, Shield, GraduationCap, Building2, CheckCircle2, Lock, Zap } from "lucide-react";
 
 export default function Home() {
-  const { data: funds, isLoading } = useFunds({ role: "Funder" });
-  const createFund = useCreateFund();
-  const [open, setOpen] = useState(false);
-
-  // Stats calculation
-  const totalLocked = funds?.reduce((acc, fund) => acc + parseFloat(fund.amount), 0).toFixed(2) || "0.00";
-  const activeBeneficiaries = new Set(funds?.map(f => f.beneficiaryAddress)).size || 0;
-  const pendingVerifications = funds?.filter(f => f.status === "Pending Verification").length || 0;
-
-  const form = useForm<z.infer<typeof insertFundSchema>>({
-    resolver: zodResolver(insertFundSchema),
-    defaultValues: {
-      funderAddress: "GDA...MOCK", // Ideally from context
-      beneficiaryAddress: "G_BENEFICIARY_MOCK", // Default for demo
-      verifierAddress: "G_VERIFIER_MOCK", // Default for demo
-      amount: "",
-      conditions: "",
-      requiredDocuments: "Proof Document", // Default value
-      deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // ~30 days default
-    }
-  });
-
-  const onSubmit = (data: z.infer<typeof insertFundSchema>) => {
-    // Convert comma-separated string to JSON string array
-    const docs = (data.requiredDocuments || "Proof Document").split(',').map(s => s.trim()).filter(Boolean);
-    const finalData = { ...data, requiredDocuments: JSON.stringify(docs) };
-    
-    createFund.mutate(finalData, {
-      onSuccess: () => {
-        setOpen(false);
-        form.reset();
-      }
-    });
-  };
-
   return (
-    <Layout>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Stats Cards */}
-        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-500/20">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-              <Lock className="w-6 h-6" />
+    <div className="min-h-screen bg-background font-sans flex flex-col">
+      {/* Header */}
+      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-primary/10 p-2 rounded-lg">
+              <Shield className="w-6 h-6 text-primary" />
             </div>
-            <div>
-              <p className="text-indigo-100 text-sm font-medium">Total Locked</p>
-              <h3 className="text-3xl font-display font-bold">{totalLocked} XLM</h3>
-            </div>
+            <span className="text-xl font-bold tracking-tight">ProofPay</span>
+          </div>
+          <div className="flex gap-4">
+            <Link href="/login">
+              <Button variant="ghost" className="font-medium">Log In</Button>
+            </Link>
+            <Link href="/register">
+              <Button className="font-medium">Sign Up</Button>
+            </Link>
           </div>
         </div>
+      </header>
 
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-primary/10 text-primary rounded-xl">
-              <Users className="w-6 h-6" />
+      <main className="flex-grow">
+        {/* Hero */}
+        <section className="relative py-24 lg:py-32 overflow-hidden">
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+          <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary/20 opacity-20 blur-[100px]"></div>
+          
+          <div className="container mx-auto px-4 text-center">
+            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary/10 text-primary hover:bg-primary/20 mb-6">
+              Now on Stellar Network
             </div>
-            <div>
-              <p className="text-muted-foreground text-sm font-medium">Beneficiaries</p>
-              <h3 className="text-2xl font-display font-bold text-foreground">{activeBeneficiaries}</h3>
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-100 dark:to-gray-400 bg-clip-text text-transparent max-w-4xl mx-auto">
+              Scholarships & Grants, <br/>
+              <span className="text-primary">Verifiable & Instant.</span>
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+              ProofPay revolutionizes funding distribution using Blockchain and Zero-Knowledge Proofs. 
+              Secure, transparent, and automated.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Link href="/register">
+                <Button size="lg" className="text-lg px-8 h-12 rounded-full shadow-lg hover:shadow-primary/25 transition-all">
+                  Get Started <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
+              </Link>
+              <Link href="/login">
+                 <Button size="lg" variant="outline" className="text-lg px-8 h-12 rounded-full bg-background/50 backdrop-blur-sm">
+                   View Demo
+                 </Button>
+              </Link>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-orange-100 text-orange-600 rounded-xl">
-              <Wallet className="w-6 h-6" />
+        {/* Features Grid */}
+        <section className="py-20 bg-muted/30">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl font-bold tracking-tight mb-4">Why ProofPay?</h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Built for trust and efficiency, our platform solves the key challenges in scholarship and grant disbursement.
+              </p>
             </div>
-            <div>
-              <p className="text-muted-foreground text-sm font-medium">Pending Review</p>
-              <h3 className="text-2xl font-display font-bold text-foreground">{pendingVerifications}</h3>
+            <div className="grid md:grid-cols-3 gap-8">
+              <FeatureCard 
+                icon={<Lock className="w-10 h-10 text-blue-500" />}
+                title="Smart Contracts"
+                description="Funds are locked securely and only released when specific, pre-defined conditions are met."
+              />
+              <FeatureCard 
+                icon={<CheckCircle2 className="w-10 h-10 text-green-500" />}
+                title="Verifiable Proofs"
+                description="Students submit cryptographic proofs of enrollment or milestones that are instantly verified."
+              />
+              <FeatureCard 
+                icon={<Zap className="w-10 h-10 text-amber-500" />}
+                title="Instant Settlement"
+                description="No more waiting days for bank transfers. Funds are settled instantly on the Stellar network."
+              />
             </div>
           </div>
+        </section>
+
+        {/* Roles */}
+        <section className="py-20">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-bold text-center mb-12">Ecosystem Roles</h2>
+            <div className="grid md:grid-cols-3 gap-8">
+              <RoleCard 
+                icon={<GraduationCap className="w-12 h-12 text-primary" />}
+                title="Beneficiary"
+                subtitle="Students & Researchers"
+                description="Apply for grants, submit proofs of work or enrollment, and receive funds directly to your wallet."
+              />
+              <RoleCard 
+                icon={<Building2 className="w-12 h-12 text-purple-600" />}
+                title="Funder"
+                subtitle="Universities & NGOs"
+                description="Create funding programs, set release conditions, and track impact with transparent reporting."
+              />
+              <RoleCard 
+                icon={<Shield className="w-12 h-12 text-emerald-600" />}
+                title="Verifier"
+                subtitle="Auditors & Oracles"
+                description="Validate submitted proofs against real-world data to trigger smart contract releases."
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="py-20 bg-primary text-primary-foreground">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to transform funding?</h2>
+            <p className="text-primary-foreground/80 text-xl max-w-2xl mx-auto mb-10">
+              Join the thousands of institutions and students already using ProofPay.
+            </p>
+            <Link href="/register">
+              <Button size="lg" variant="secondary" className="text-lg px-8 h-12 rounded-full shadow-lg">
+                Create Free Account
+              </Button>
+            </Link>
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-card border-t py-12">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Shield className="w-6 h-6 text-primary" />
+              <span className="text-lg font-bold">ProofPay</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} ProofPay Inc. All rights reserved.
+            </p>
+          </div>
         </div>
+      </footer>
+    </div>
+  );
+}
+
+function FeatureCard({ icon, title, description }: { icon: any, title: string, description: string }) {
+  return (
+    <div className="bg-card p-8 rounded-2xl border shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+      <div className="mb-6 bg-muted/50 w-16 h-16 rounded-xl flex items-center justify-center">
+        {icon}
       </div>
+      <h3 className="text-xl font-bold mb-3">{title}</h3>
+      <p className="text-muted-foreground leading-relaxed">{description}</p>
+    </div>
+  );
+}
 
-      <div className="flex items-center justify-between mt-8">
-        <h2 className="text-2xl font-display font-bold">Your Funds</h2>
-        
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all">
-              <Plus className="w-4 h-4 mr-2" /> New Fund
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle className="font-display text-xl">Create Scholarship Fund</DialogTitle>
-              <DialogDescription>
-                Define the conditions for this conditional disbursement.
-              </DialogDescription>
-            </DialogHeader>
-
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Amount (XLM)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="1000" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="deadline"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Deadline</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="beneficiaryAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Beneficiary Address (Wallet)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="G..." className="font-mono text-sm" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="verifierAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Verifier Address (Institution)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="G..." className="font-mono text-sm" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="conditions"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Conditions for Release</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="E.g. Must maintain GPA > 3.0 and complete fallback semester."
-                          className="h-24 resize-none"
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="requiredDocuments"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Required Documents (Comma separated)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="E.g. Aadhar Card, Pan Card, Transcript"
-                          {...field} 
-                          value={field.value || ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button variant="outline" type="button" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={createFund.isPending}>
-                    {createFund.isPending ? "Locking Funds..." : "Create Fund"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {isLoading ? (
-        <div className="h-64 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : funds?.length === 0 ? (
-        <div className="text-center py-20 bg-muted/30 rounded-2xl border border-dashed border-border">
-          <div className="bg-background w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 border shadow-sm">
-            <Wallet className="w-6 h-6 text-muted-foreground" />
-          </div>
-          <h3 className="font-display font-medium text-lg">No funds created yet</h3>
-          <p className="text-muted-foreground max-w-sm mx-auto mt-2">
-            Create your first scholarship fund to start supporting beneficiaries securely.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {funds?.map((fund) => (
-            <FundCard key={fund.id} fund={fund} role="Funder" />
-          ))}
-        </div>
-      )}
-    </Layout>
+function RoleCard({ icon, title, subtitle, description }: { icon: any, title: string, subtitle: string, description: string }) {
+  return (
+    <div className="bg-card p-8 rounded-2xl border shadow-sm hover:shadow-md transition-all group">
+      <div className="mb-6 transform group-hover:scale-110 transition-transform duration-300">{icon}</div>
+      <h3 className="text-2xl font-bold mb-1">{title}</h3>
+      <p className="text-primary font-medium mb-4">{subtitle}</p>
+      <p className="text-muted-foreground">{description}</p>
+    </div>
   );
 }
