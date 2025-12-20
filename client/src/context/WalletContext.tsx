@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import albedo from '@albedo-link/intent';
 import { useToast } from "@/hooks/use-toast";
 import { Horizon } from '@stellar/stellar-sdk';
+import { walletService } from '@/lib/walletKit';
 
 // Initialize Horizon server (Testnet)
 const HORIZON_URL = import.meta.env.VITE_HORIZON_URL || 'https://horizon-testnet.stellar.org';
@@ -63,11 +63,8 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const connectWallet = async () => {
     setIsConnecting(true);
     try {
-      const result = await albedo.publicKey({
-        token: 'proofpay_auth_' + Date.now(), // Random token to prevent replay
-      });
+      const pubKey = await walletService.connect();
       
-      const pubKey = result.pubkey;
       setAddress(pubKey);
       setIsConnected(true);
       localStorage.setItem('proofpay_wallet_address', pubKey);
@@ -77,7 +74,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       await fetchBalance(pubKey);
     } catch (error: any) {
       console.error("Wallet connection failed", error);
-      toast({ variant: "destructive", title: "Connection Failed", description: error.message || "Could not connect to Albedo" });
+      toast({ variant: "destructive", title: "Connection Failed", description: error.message || "Could not connect to Wallet" });
     } finally {
       setIsConnecting(false);
     }

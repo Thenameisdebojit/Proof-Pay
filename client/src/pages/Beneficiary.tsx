@@ -22,6 +22,7 @@ import { useWallet } from "@/context/WalletContext";
 import { calculateFileHash } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { walletService } from "@/lib/walletKit";
 
 export default function Beneficiary() {
   const { user, isLoading: isAuthLoading } = useAuth();
