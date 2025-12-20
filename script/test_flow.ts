@@ -65,6 +65,19 @@ async function runTest() {
 
   // 4. Verify and Release
   console.log("\n4. Verifying and Releasing...");
+
+  // Check if Verifier can see the fund (simulating mismatched address by not sending one, or sending a wrong one if we were testing strictness)
+  // The useFunds hook now omits address for Verifier, so we test fetching without address
+  const verifierListRes = await fetch(`${BASE_URL}${api.funds.list.path}?role=Verifier`);
+  const verifierFunds = await verifierListRes.json();
+  const foundForVerifier = verifierFunds.find((f: any) => f.id === fund.id);
+  
+  if (foundForVerifier) {
+    console.log("Fund visible to Verifier (Good)");
+  } else {
+    console.error("Fund NOT visible to Verifier!");
+  }
+
   const verifyRes = await fetch(`${BASE_URL}${api.funds.verify.path.replace(':id', fund.id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

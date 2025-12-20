@@ -12,10 +12,10 @@ export function useFunds(filters?: { role?: 'Funder' | 'Beneficiary' | 'Verifier
       if (filters?.role) {
         url += `role=${filters.role}&`;
       }
-      // For Beneficiary, we intentionally omit the address filter to ensure they see all funds 
-      // (resolves "doesn't show fund" issue if wallet address mismatches or is empty)
-      // For Funder and Verifier, we keep the filter to show only their relevant funds
-      if (filters?.address && filters.role !== 'Beneficiary') {
+      // For Beneficiary and Verifier, we intentionally omit the address filter to ensure they see all funds 
+      // (resolves "doesn't show fund" issue if wallet address mismatches or is empty during demo)
+      // For Funder, we keep the filter to show only their created funds
+      if (filters?.address && filters.role !== 'Beneficiary' && filters.role !== 'Verifier') {
         url += `address=${filters.address}`;
       }
       
