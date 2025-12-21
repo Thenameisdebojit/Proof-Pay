@@ -1,244 +1,214 @@
-ProofPay
-Overview
+```markdown
+# ProofPay
 
-ProofPay is a trust-minimized, on-chain scholarship and grant disbursement system built on the Stellar blockchain (Soroban).
-It ensures that funds are locked transparently, released only after proof-based approval, and automatically recoverable if conditions are not met.
+**Conditional scholarship & grant disbursement with on-chain escrow and cryptographic proof verification**
 
-ProofPay replaces manual, opaque, and delay-prone payment processes with verifiable, rule-enforced fund flows.
+## Problem Statement
 
-Problem Statement
+Traditional grant disbursement requires either:
+- **Trust-based release**: Funds sent upfront with no recourse if milestones aren't met
+- **Centralized escrow**: Third-party custody introduces counterparty risk and operational overhead
 
-Scholarships, grants, and aid programs suffer from:
+ProofPay solves this by locking funds on-chain in a Soroban smart contract, releasing them only when verifiable proof of milestone completion is submitted and approved by a designated verifier. Funders retain automatic refund rights if conditions aren't met.
 
-Delayed or manual disbursement
+## How ProofPay Works
 
-Lack of transparency for beneficiaries
+1. **Funder** creates a grant agreement via ProofPay frontend and deposits funds into a Soroban escrow contract
+2. **Beneficiary** receives notification and accepts terms (on-chain signature required)
+3. **Beneficiary** uploads proof of milestone completion (documents, reports, certifications)
+4. **Verifier** (designated authority) reviews submitted proof and either:
+   - Approves release → Funds transfer to beneficiary
+   - Rejects submission → Beneficiary can resubmit or funder can claim refund
+5. **Refund Path**: If deadline passes without approval, funder can reclaim locked funds
 
-Risk of misallocation or fund leakage
+All state transitions require explicit wallet signatures. No automated approvals.
 
-No cryptographic guarantee of compliance
+## Core Guarantees & Security Model
 
-Existing systems rely on trust and manual enforcement.
+- ✅ Funds locked on-chain only (Stellar Testnet)
+- ✅ Non-custodial: No private keys, no seed phrases stored
+- ✅ Every transaction requires wallet signature (Albedo integration)
+- ✅ No backend custody or database for funds
+- ✅ Smart contract enforces time-bound refund rights
+- ✅ AI never approves funds or triggers releases
 
-ProofPay enforces rules on-chain.
+## Smart Contract Overview
 
-Core Idea (Plain English)
+**Contract Type**: Soroban (Rust), deployed on Stellar Testnet  
+**State Machine**:
+```
+Created → Accepted → ProofSubmitted → Approved/Rejected → Released/Refunded
+```
 
-A funder locks money into a smart contract.
+**Authorization Roles**:
+- **Funder**: Deposits funds, can refund after deadline
+- **Beneficiary**: Accepts agreement, submits proof, receives payout
+- **Verifier**: Reviews proof, approves/rejects release
 
-The money cannot move unless predefined conditions are met.
+**Refund Guarantees**:
+- Automatic eligibility after deadline expiration
+- Requires funder's wallet signature to execute
+- Funds remain locked until explicit action (approval or refund)
 
-A beneficiary submits proof (hash only).
+## AI Usage (Advisory Only)
 
-A verifier reviews the proof and approves using their wallet.
+**What AI Does**:
+- Extracts text from uploaded documents (PDFs, images)
+- Provides summary analysis of submitted proof
+- Flags potential discrepancies for verifier review
 
-Funds are released instantly on-chain — or refunded if deadlines expire.
+**What AI Does NOT Do**:
+- ❌ Approve or reject fund releases
+- ❌ Sign transactions
+- ❌ Make custody decisions
+- ❌ Access private keys
+- ❌ Trigger smart contract functions
 
-No backend custody. No manual payouts.
+AI output is **advisory metadata only**. All approval decisions are human-executed via wallet signatures.
 
-System Architecture
-User Wallet (Albedo)
-        |
-        v
-Frontend (React)
-        |
-        v
-Soroban Smart Contract (On-Chain Escrow)
-        |
-        v
-Stellar Ledger (Final Settlement)
+## Frontend & Wallet Integration
 
+- **Wallet**: Albedo (Stellar testnet, non-custodial)
+- **RPC**: Read-only Soroban RPC + Horizon API for indexing
+- **No Backend**: All state read from blockchain; no server-side database for funds
+- **Transaction Flow**: Frontend constructs transaction → User signs in Albedo → Broadcast to Stellar network
 
-Key Properties
+## Tech Stack
 
-No backend servers
+| Layer | Technology |
+|-------|-----------|
+| Smart Contracts | Soroban (Rust) |
+| Blockchain | Stellar Testnet |
+| Wallet | Albedo (non-custodial) |
+| Frontend | React + Stellar SDK |
+| Indexing | Soroban RPC (read-only) |
+| AI (Optional) | Off-chain document analysis |
 
-No database for funds
+## What This Project Does NOT Do
 
-No custodial wallets
+- ❌ Custodial wallets or key management
+- ❌ Automated AI-driven approvals
+- ❌ Mainnet deployment (testnet only)
+- ❌ Backend fund storage or private databases
+- ❌ Multi-sig recovery (funds locked to contract logic only)
 
-All money lives on-chain
+## Current Status
 
-UI reads blockchain state directly
+⚠️ **Prototype / Testnet Only**  
+- Not audited
+- Not production-ready
+- For demonstration and testing purposes
+- Testnet XLM has no real value
 
-Smart Contract Design
+---
 
-Funds are escrowed on-chain using Soroban smart contracts
+**License**: MIT  
+**Network**: Stellar Testnet  
+**Contract Language**: Rust (Soroban)
+``````markdown
+# ProofPay
 
-State Machine:
+**Conditional scholarship & grant disbursement with on-chain escrow and cryptographic proof verification**
 
-PENDING
+## Problem Statement
 
-PROOF_SUBMITTED
+Traditional grant disbursement requires either:
+- **Trust-based release**: Funds sent upfront with no recourse if milestones aren't met
+- **Centralized escrow**: Third-party custody introduces counterparty risk and operational overhead
 
-APPROVED
+ProofPay solves this by locking funds on-chain in a Soroban smart contract, releasing them only when verifiable proof of milestone completion is submitted and approved by a designated verifier. Funders retain automatic refund rights if conditions aren't met.
 
-RELEASED
+## How ProofPay Works
 
-REFUNDED
+1. **Funder** creates a grant agreement via ProofPay frontend and deposits funds into a Soroban escrow contract
+2. **Beneficiary** receives notification and accepts terms (on-chain signature required)
+3. **Beneficiary** uploads proof of milestone completion (documents, reports, certifications)
+4. **Verifier** (designated authority) reviews submitted proof and either:
+   - Approves release → Funds transfer to beneficiary
+   - Rejects submission → Beneficiary can resubmit or funder can claim refund
+5. **Refund Path**: If deadline passes without approval, funder can reclaim locked funds
 
-Role-based authorization:
+All state transitions require explicit wallet signatures. No automated approvals.
 
-Funder creates and can refund
+## Core Guarantees & Security Model
 
-Beneficiary submits proof and claims funds
+- ✅ Funds locked on-chain only (Stellar Testnet)
+- ✅ Non-custodial: No private keys, no seed phrases stored
+- ✅ Every transaction requires wallet signature (Albedo integration)
+- ✅ No backend custody or database for funds
+- ✅ Smart contract enforces time-bound refund rights
+- ✅ AI never approves funds or triggers releases
 
-Verifier approves proof
+## Smart Contract Overview
 
-Deadlines enforced on-chain
+**Contract Type**: Soroban (Rust), deployed on Stellar Testnet  
+**State Machine**:
+```
+Created → Accepted → ProofSubmitted → Approved/Rejected → Released/Refunded
+```
 
-Typed errors, no panic paths
+**Authorization Roles**:
+- **Funder**: Deposits funds, can refund after deadline
+- **Beneficiary**: Accepts agreement, submits proof, receives payout
+- **Verifier**: Reviews proof, approves/rejects release
 
-Funds can never be trapped
+**Refund Guarantees**:
+- Automatic eligibility after deadline expiration
+- Requires funder's wallet signature to execute
+- Funds remain locked until explicit action (approval or refund)
 
-Application Flow
-Funder
+## AI Usage (Advisory Only)
 
-Connect wallet
+**What AI Does**:
+- Extracts text from uploaded documents (PDFs, images)
+- Provides summary analysis of submitted proof
+- Flags potential discrepancies for verifier review
 
-Create a fund
+**What AI Does NOT Do**:
+- ❌ Approve or reject fund releases
+- ❌ Sign transactions
+- ❌ Make custody decisions
+- ❌ Access private keys
+- ❌ Trigger smart contract functions
 
-Funds lock on-chain
+AI output is **advisory metadata only**. All approval decisions are human-executed via wallet signatures.
 
-Wait for approval or refund after deadline
+## Frontend & Wallet Integration
 
-Beneficiary
+- **Wallet**: Albedo (Stellar testnet, non-custodial)
+- **RPC**: Read-only Soroban RPC + Horizon API for indexing
+- **No Backend**: All state read from blockchain; no server-side database for funds
+- **Transaction Flow**: Frontend constructs transaction → User signs in Albedo → Broadcast to Stellar network
 
-Sees scholarship notification
+## Tech Stack
 
-Submits proof hash
+| Layer | Technology |
+|-------|-----------|
+| Smart Contracts | Soroban (Rust) |
+| Blockchain | Stellar Testnet |
+| Wallet | Albedo (non-custodial) |
+| Frontend | React + Stellar SDK |
+| Indexing | Soroban RPC (read-only) |
+| AI (Optional) | Off-chain document analysis |
 
-Tracks status
+## What This Project Does NOT Do
 
-Claims funds after approval
+- ❌ Custodial wallets or key management
+- ❌ Automated AI-driven approvals
+- ❌ Backend fund storage or private databases
+- ❌ Multi-sig recovery (funds locked to contract logic only)
 
-Verifier
+## Current Status
 
-Sees pending proofs
+⚠️ **Prototype / Testnet Only**  
+- Not audited
+- Not production-ready
+- For demonstration and testing purposes
+- Testnet XLM has no real value
 
-Reviews submitted hash
+---
 
-Optionally uses AI advisory panel
-
-Approves via wallet signature
-
-AI Verification (Advisory Only)
-
-AI assists verifiers off-chain
-
-Extracts fields (e.g. GPA, institution)
-
-Highlights red flags
-
-Provides confidence score
-
-Important:
-AI never approves funds, signs transactions, or touches the smart contract.
-Only human wallet signatures trigger on-chain actions.
-
-Wallet & Security Model
-
-Wallet: Albedo (Testnet)
-
-No private key handling
-
-No seed phrase storage
-
-No auto-signing
-
-One action = one explicit wallet signature
-
-Separation of approval and fund release
-
-This design is safe for real fund workflows.
-
-Read-Only Indexing & Sync
-
-Frontend polls Soroban RPC & Horizon
-
-No backend indexing service
-
-UI updates only after on-chain confirmation
-
-Explorer links shown for every transaction
-
-Blockchain is the source of truth
-
-Failure Handling
-
-Human-readable error messages
-
-Demo failure simulation mode
-
-Explicit handling for:
-
-Deadline expiry
-
-Unauthorized actions
-
-Invalid state transitions
-
-Funds always remain recoverable
-
-Tech Stack
-
-Blockchain: Stellar Testnet
-
-Smart Contracts: Soroban (Rust)
-
-Wallet: Albedo
-
-Frontend: React + TypeScript
-
-Styling: Utility-first CSS
-
-Backend: None (by design)
-
-What This Project Is NOT
-
-No backend servers
-
-No custodial wallets
-
-No KYC or identity system
-
-No auto-approval
-
-No database for funds
-
-No DAO or governance layer
-
-Demo & Testing
-
-Connect Albedo wallet (Testnet)
-
-Create a fund as Funder
-
-Switch wallet to Beneficiary → submit proof
-
-Switch wallet to Verifier → approve
-
-Switch back to Beneficiary → claim funds
-
-View transactions on Stellar Explorer
-
-Roadmap (Conceptual)
-
-Institutional verifier wallets
-
-Batched scholarship creation
-
-Time-based escalation policies
-
-Enhanced AI advisory models
-
-These are not yet implemented.
-
-Disclaimer
-
-This project is a prototype for demonstration and educational purposes.
-It is not financial advice and has not undergone a formal security audit.
-
-ProofPay
-
-Replacing trust-based payments with proof-based automation.
+**License**: MIT  
+**Network**: Stellar Testnet  
+**Contract Language**: Rust (Soroban)
+```
